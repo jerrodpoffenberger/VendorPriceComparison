@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Map Columns — {{ vendor.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="{{ url_for('upload', vendor_id=vendor.id) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div>
+    <h4 class="mb-0">Step 2 of 3 — Select Columns</h4>
+    <small class="text-muted">{{ vendor.name }} &mdash; {{ filename }}</small>
+  </div>
+</div>
+
+<!-- Preview table -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-dark text-white fw-semibold">
+    <i class="bi bi-table me-1"></i>File Preview (first 6 rows)
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 small">
+        <thead class="table-light">
+          <tr>
+            {% for col in columns %}
+            <th>{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in preview %}
+          <tr>
+            {% for col in columns %}
+            <td>{{ row.get(col) or '' }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Column selection -->
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-dark text-white fw-semibold">
+        <i class="bi bi-funnel me-1"></i>Which columns contain…
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Cut Description <span class="text-danger">*</span></label>
+            <select name="desc_field" class="form-select" required>
+              <option value="">— select column —</option>
+              {% for col in columns %}
+              <option value="{{ col }}">{{ col }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Price <span class="text-danger">*</span></label>
+            <select name="price_field" class="form-select" required>
+              <option value="">— select column —</option>
+              {% for col in columns %}
+              <option value="{{ col }}">{{ col }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Unit <span class="text-muted fw-normal">(optional — defaults to "lb")</span></label>
+            <select name="unit_field" class="form-select">
+              <option value="">— not in a column —</option>
+              {% for col in columns %}
+              <option value="{{ col }}">{{ col }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">
+            Continue to Cut Mapping <i class="bi bi-arrow-right ms-1"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

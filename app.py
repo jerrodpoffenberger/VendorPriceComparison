@@ -1,7 +1,9 @@
+import json
 import os
+import uuid
 from datetime import datetime
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -10,7 +12,6 @@ from werkzeug.utils import secure_filename
 from extensions import db
 from models import Vendor, PriceSheet, CanonicalCut, CutMapping, LineItem
 from file_parser import parse_file, clean_price
-from ai_matcher import identify_columns, match_cuts
 
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'xlsm', 'csv', 'pdf'}
 
@@ -21,23 +22,50 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
+TMP_DIR = os.path.join(os.path.dirname(__file__), 'tmp')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(TMP_DIR, exist_ok=True)
+
 db.init_app(app)
 
 with app.app_context():
     db.create_all()
 
 
-def allowed_file(filename: str) -> bool:
+# ── Temp session helpers ──────────────────────────────────────────────────────
+
+def _tmp_path(token):
+    return os.path.join(TMP_DIR, f'{token}.json')
+
+def _save_tmp(token, data):
+    with open(_tmp_path(token), 'w') as f:
+        json.dump(data, f)
+
+def _load_tmp(token):
+    p = _tmp_path(token)
+    if not os.path.exists(p):
+        return None
+    with open(p) as f:
+        return json.load(f)
+
+def _clean_tmp(token):
+    p = _tmp_path(token)
+    if os.path.exists(p):
+        os.remove(p)
+
+
+def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# ── Routes ──────────────────────────────────────────────────────────────────
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
     return redirect(url_for('comparison'))
 
+
+# ── Vendors ──────────────────────────────────────────────────────────────────
 
 @app.route('/vendors')
 def vendors():
@@ -54,8 +82,7 @@ def add_vendor():
     if Vendor.query.filter_by(name=name).first():
         flash(f'Vendor "{name}" already exists.', 'warning')
         return redirect(url_for('vendors'))
-    vendor = Vendor(name=name)
-    db.session.add(vendor)
+    db.session.add(Vendor(name=name))
     db.session.commit()
     flash(f'Vendor "{name}" added.', 'success')
     return redirect(url_for('vendors'))
@@ -76,6 +103,18 @@ def vendor_detail(vendor_id):
     sheets = PriceSheet.query.filter_by(vendor_id=vendor_id).order_by(PriceSheet.uploaded_at.desc()).all()
     return render_template('vendor_detail.html', vendor=vendor, sheets=sheets)
 
+
+@app.route('/vendors/<int:vendor_id>/sheets/<int:sheet_id>/activate', methods=['POST'])
+def activate_sheet(vendor_id, sheet_id):
+    PriceSheet.query.filter_by(vendor_id=vendor_id, is_active=True).update({'is_active': False})
+    sheet = db.get_or_404(PriceSheet, sheet_id)
+    sheet.is_active = True
+    db.session.commit()
+    flash('Price sheet activated.', 'success')
+    return redirect(url_for('vendor_detail', vendor_id=vendor_id))
+
+
+# ── Upload wizard: Step 1 — pick file ────────────────────────────────────────
 
 @app.route('/vendors/<int:vendor_id>/upload', methods=['GET', 'POST'])
 def upload(vendor_id):
@@ -105,23 +144,44 @@ def upload(vendor_id):
             flash('No data found in file.', 'danger')
             return redirect(request.url)
 
-        # Identify columns via AI
-        try:
-            col_map = identify_columns(rows)
-        except Exception as e:
-            flash(f'AI column detection failed: {e}', 'danger')
-            return redirect(request.url)
+        token = str(uuid.uuid4())
+        _save_tmp(token, {
+            'vendor_id': vendor_id,
+            'filename': filename,
+            'save_path': save_path,
+            'rows': rows,
+        })
+        return redirect(url_for('column_picker', token=token))
 
-        desc_field = col_map.get('description_field')
-        price_field = col_map.get('price_field')
-        unit_field = col_map.get('unit_field')
+    return render_template('upload.html', vendor=vendor)
+
+
+# ── Upload wizard: Step 2 — pick columns ─────────────────────────────────────
+
+@app.route('/upload/<token>/columns', methods=['GET', 'POST'])
+def column_picker(token):
+    data = _load_tmp(token)
+    if not data:
+        flash('Upload session expired. Please upload again.', 'danger')
+        return redirect(url_for('vendors'))
+
+    vendor = db.get_or_404(Vendor, data['vendor_id'])
+    rows = data['rows']
+    columns = list(rows[0].keys()) if rows else []
+    preview = rows[:6]
+
+    if request.method == 'POST':
+        desc_field = request.form.get('desc_field', '').strip()
+        price_field = request.form.get('price_field', '').strip()
+        unit_field = request.form.get('unit_field', '').strip() or None
 
         if not desc_field or not price_field:
-            flash('Could not identify description or price columns in this file.', 'danger')
+            flash('Please select both a description and a price column.', 'danger')
             return redirect(request.url)
 
-        # Extract line items
-        raw_items = []
+        # Extract unique items using the chosen columns
+        items = []
+        seen = set()
         for row in rows:
             desc = row.get(desc_field)
             price_raw = row.get(price_field)
@@ -133,136 +193,141 @@ def upload(vendor_id):
             if price is None:
                 continue
 
-            unit = str(unit_raw).strip().lower() if unit_raw else 'lb'
-            raw_items.append({
-                'raw_description': str(desc).strip(),
-                'price': price,
-                'unit': unit,
-            })
+            desc = str(desc).strip()
+            if not desc or desc in seen:
+                continue
+            seen.add(desc)
 
-        if not raw_items:
-            flash('No valid price rows found in the file.', 'danger')
+            unit = str(unit_raw).strip().lower() if unit_raw else 'lb'
+            items.append({'raw_description': desc, 'price': price, 'unit': unit})
+
+        if not items:
+            flash('No valid price rows found with the selected columns.', 'danger')
             return redirect(request.url)
 
-        # Check cached mappings first
-        existing_cuts = {c.name: c for c in CanonicalCut.query.all()}
-        cached_maps = {
+        data.update({'desc_field': desc_field, 'price_field': price_field,
+                     'unit_field': unit_field, 'items': items})
+        _save_tmp(token, data)
+        return redirect(url_for('cut_mapper', token=token))
+
+    return render_template('column_picker.html',
+                           vendor=vendor, token=token,
+                           columns=columns, preview=preview,
+                           filename=data['filename'])
+
+
+# ── Upload wizard: Step 3 — map cut names ────────────────────────────────────
+
+@app.route('/upload/<token>/mapping', methods=['GET', 'POST'])
+def cut_mapper(token):
+    data = _load_tmp(token)
+    if not data:
+        flash('Upload session expired. Please upload again.', 'danger')
+        return redirect(url_for('vendors'))
+
+    vendor_id = data['vendor_id']
+    vendor = db.get_or_404(Vendor, vendor_id)
+    items = data.get('items', [])
+    filename = data['filename']
+
+    cached = {
+        m.raw_description: m
+        for m in CutMapping.query.filter_by(vendor_id=vendor_id).all()
+    }
+    unmapped = [item for item in items if item['raw_description'] not in cached]
+    auto_count = len(items) - len(unmapped)
+    canonical_cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
+
+    if request.method == 'POST':
+        cut_by_id = {c.id: c for c in CanonicalCut.query.all()}
+        cut_by_name = {c.name: c for c in cut_by_id.values()}
+
+        # Process user-supplied mappings for unmapped items
+        for i, item in enumerate(unmapped):
+            cut_val = request.form.get(f'cut_{i}', 'skip')
+            if cut_val == 'skip' or not cut_val:
+                continue
+
+            if cut_val == 'new':
+                new_name = request.form.get(f'new_name_{i}', '').strip()
+                new_cat = request.form.get(f'new_cat_{i}', 'beef')
+                if not new_name:
+                    continue
+                if new_name not in cut_by_name:
+                    cut = CanonicalCut(name=new_name, category=new_cat)
+                    db.session.add(cut)
+                    db.session.flush()
+                    cut_by_name[new_name] = cut
+                cut = cut_by_name[new_name]
+            else:
+                cut = cut_by_id.get(int(cut_val))
+                if not cut:
+                    continue
+
+            if not CutMapping.query.filter_by(raw_description=item['raw_description'],
+                                               vendor_id=vendor_id).first():
+                db.session.add(CutMapping(
+                    raw_description=item['raw_description'],
+                    canonical_cut_id=cut.id,
+                    vendor_id=vendor_id,
+                ))
+
+        db.session.flush()
+
+        # Refresh cache after new mappings are flushed
+        cached = {
             m.raw_description: m
             for m in CutMapping.query.filter_by(vendor_id=vendor_id).all()
         }
 
-        need_matching = [
-            item['raw_description']
-            for item in raw_items
-            if item['raw_description'] not in cached_maps
-        ]
-
-        # AI match only un-cached descriptions
-        match_lookup = {}
-        if need_matching:
-            existing_cut_list = [
-                {'name': c.name, 'category': c.category}
-                for c in existing_cuts.values()
-            ]
-            try:
-                ai_results = match_cuts(need_matching, existing_cut_list)
-            except Exception as e:
-                flash(f'AI cut matching failed: {e}', 'danger')
-                return redirect(request.url)
-
-            for result in ai_results:
-                match_lookup[result['raw']] = result
-
-        # Persist new canonical cuts
-        for result in match_lookup.values():
-            if result['category'] == 'skip':
-                continue
-            cname = result['canonical']
-            if cname not in existing_cuts:
-                cut = CanonicalCut(name=cname, category=result['category'])
-                db.session.add(cut)
-                db.session.flush()
-                existing_cuts[cname] = cut
-
-        # Deactivate previous active sheets for this vendor
+        # Deactivate old sheets, create new one
         PriceSheet.query.filter_by(vendor_id=vendor_id, is_active=True).update({'is_active': False})
-
-        # Create new price sheet
         sheet = PriceSheet(vendor_id=vendor_id, filename=filename)
         db.session.add(sheet)
         db.session.flush()
 
         saved = 0
-        for item in raw_items:
-            raw_desc = item['raw_description']
-
-            # Resolve canonical cut
-            if raw_desc in cached_maps:
-                mapping = cached_maps[raw_desc]
-                cut = mapping.canonical_cut
-            elif raw_desc in match_lookup:
-                result = match_lookup[raw_desc]
-                if result['category'] == 'skip':
-                    continue
-                cut = existing_cuts.get(result['canonical'])
-                if cut:
-                    # Cache this mapping
-                    m = CutMapping(
-                        raw_description=raw_desc,
-                        canonical_cut_id=cut.id,
-                        vendor_id=vendor_id,
-                    )
-                    db.session.add(m)
-            else:
-                cut = None
-
-            li = LineItem(
+        for item in items:
+            mapping = cached.get(item['raw_description'])
+            db.session.add(LineItem(
                 price_sheet_id=sheet.id,
-                raw_description=raw_desc,
+                raw_description=item['raw_description'],
                 price=item['price'],
                 unit=item['unit'],
-                canonical_cut_id=cut.id if cut else None,
-            )
-            db.session.add(li)
+                canonical_cut_id=mapping.canonical_cut_id if mapping else None,
+            ))
             saved += 1
 
         sheet.item_count = saved
         db.session.commit()
+        _clean_tmp(token)
 
         flash(f'Imported {saved} items from "{filename}".', 'success')
         return redirect(url_for('comparison'))
 
-    return render_template('upload.html', vendor=vendor)
+    return render_template('cut_mapper.html',
+                           vendor=vendor, token=token,
+                           filename=filename, unmapped=unmapped,
+                           auto_count=auto_count,
+                           canonical_cuts=canonical_cuts)
 
 
-@app.route('/vendors/<int:vendor_id>/sheets/<int:sheet_id>/activate', methods=['POST'])
-def activate_sheet(vendor_id, sheet_id):
-    PriceSheet.query.filter_by(vendor_id=vendor_id, is_active=True).update({'is_active': False})
-    sheet = db.get_or_404(PriceSheet, sheet_id)
-    sheet.is_active = True
-    db.session.commit()
-    flash('Price sheet activated.', 'success')
-    return redirect(url_for('vendor_detail', vendor_id=vendor_id))
-
+# ── Comparison ────────────────────────────────────────────────────────────────
 
 @app.route('/comparison')
 def comparison():
     category_filter = request.args.get('category', 'all')
     vendors = Vendor.query.order_by(Vendor.name).all()
 
-    # Most recent active price sheet per vendor
     active_sheets = {}
     for v in vendors:
-        sheet = (
-            PriceSheet.query
-            .filter_by(vendor_id=v.id, is_active=True)
-            .order_by(PriceSheet.uploaded_at.desc())
-            .first()
-        )
+        sheet = (PriceSheet.query
+                 .filter_by(vendor_id=v.id, is_active=True)
+                 .order_by(PriceSheet.uploaded_at.desc())
+                 .first())
         if sheet:
             active_sheets[v.id] = sheet
 
-    # Build {cut_id: {vendor_id: LineItem}}
     cut_query = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name)
     if category_filter != 'all':
         cut_query = cut_query.filter_by(category=category_filter)
@@ -273,28 +338,22 @@ def comparison():
         sheet = active_sheets.get(v.id)
         if not sheet:
             continue
-        items = LineItem.query.filter_by(price_sheet_id=sheet.id).all()
-        for item in items:
+        for item in LineItem.query.filter_by(price_sheet_id=sheet.id).all():
             if item.canonical_cut_id:
                 price_map.setdefault(item.canonical_cut_id, {})[v.id] = item
 
-    # Filter to cuts that have data from at least one vendor
     cuts_with_data = [c for c in cuts if price_map.get(c.id)]
-
-    # Group by category
     grouped = {}
     for cut in cuts_with_data:
         grouped.setdefault(cut.category, []).append(cut)
 
-    return render_template(
-        'comparison.html',
-        grouped=grouped,
-        vendors=vendors,
-        price_map=price_map,
-        active_sheets=active_sheets,
-        category_filter=category_filter,
-    )
+    return render_template('comparison.html',
+                           grouped=grouped, vendors=vendors,
+                           price_map=price_map, active_sheets=active_sheets,
+                           category_filter=category_filter)
 
+
+# ── Canonical cuts ────────────────────────────────────────────────────────────
 
 @app.route('/canonical-cuts')
 def canonical_cuts():
@@ -312,8 +371,7 @@ def add_canonical_cut():
     if CanonicalCut.query.filter_by(name=name).first():
         flash(f'"{name}" already exists.', 'warning')
         return redirect(url_for('canonical_cuts'))
-    cut = CanonicalCut(name=name, category=category)
-    db.session.add(cut)
+    db.session.add(CanonicalCut(name=name, category=category))
     db.session.commit()
     flash(f'"{name}" added.', 'success')
     return redirect(url_for('canonical_cuts'))

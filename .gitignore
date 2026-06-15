@@ -1,6 +1,7 @@
 .env
 *.db
 uploads/
+tmp/
 __pycache__/
 *.pyc
 *.pyo

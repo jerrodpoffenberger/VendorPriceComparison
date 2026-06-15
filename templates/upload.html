@@ -6,11 +6,14 @@
   <a href="{{ url_for('vendor_detail', vendor_id=vendor.id) }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h4 class="mb-0">Upload Price Sheet — {{ vendor.name }}</h4>
+  <div>
+    <h4 class="mb-0">Step 1 of 3 — Upload File</h4>
+    <small class="text-muted">{{ vendor.name }}</small>
+  </div>
 </div>
 
 <div class="row justify-content-center">
-  <div class="col-lg-6">
+  <div class="col-lg-5">
     <div class="card border-0 shadow-sm">
       <div class="card-body p-4">
         <form method="post" enctype="multipart/form-data">
@@ -18,36 +21,23 @@
             <label class="form-label fw-semibold">Price Sheet File</label>
             <input type="file" name="file" class="form-control form-control-lg"
                    accept=".xlsx,.xls,.xlsm,.csv,.pdf" required>
-            <div class="form-text mt-1">
-              Supports Excel (.xlsx, .xls), CSV, and PDF.
+            <div class="form-text mt-2">
+              Supports Excel (.xlsx, .xls), CSV, and PDF.<br>
+              You'll select columns and map cut names in the next steps.
             </div>
           </div>
 
-          <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
-            <i class="bi bi-robot fs-5 mt-0"></i>
-            <div>
-              <strong>AI-Powered Matching</strong><br>
-              Claude will automatically detect column layouts and normalize cut names
-              across vendors. Previously matched cuts are cached for faster re-imports.
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary btn-lg w-100" id="uploadBtn">
-            <i class="bi bi-upload me-2"></i>Upload &amp; Process
+          <button type="submit" class="btn btn-primary btn-lg w-100">
+            <i class="bi bi-upload me-2"></i>Upload &amp; Continue
           </button>
         </form>
       </div>
     </div>
+
+    <div class="mt-3 text-muted small text-center">
+      <i class="bi bi-info-circle me-1"></i>
+      After the first upload, cut name mappings are remembered for this vendor.
+    </div>
   </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.querySelector('form').addEventListener('submit', function() {
-  const btn = document.getElementById('uploadBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing with AI…';
-});
-</script>
 {% endblock %}
