@@ -2,11 +2,12 @@ import json
 import os
 import uuid
 from datetime import datetime
+from functools import wraps
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.utils import secure_filename
 
 from extensions import db
@@ -14,6 +15,18 @@ from models import Vendor, PriceSheet, CanonicalCut, CutMapping, LineItem
 from file_parser import parse_file, clean_price
 
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'xlsm', 'csv', 'pdf'}
+
+APP_USERNAME = os.environ.get('APP_USERNAME', 'admin')
+APP_PASSWORD = os.environ.get('APP_PASSWORD', 'admin')
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-in-prod')
@@ -81,9 +94,33 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+# ── Auth ─────────────────────────────────────────────────────────────────────
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('logged_in'):
+        return redirect(url_for('comparison'))
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        if username == APP_USERNAME and password == APP_PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('comparison'))
+        error = 'Invalid username or password.'
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
+@login_required
 def index():
     return redirect(url_for('comparison'))
 
@@ -91,12 +128,14 @@ def index():
 # ── Vendors ──────────────────────────────────────────────────────────────────
 
 @app.route('/vendors')
+@login_required
 def vendors():
     all_vendors = Vendor.query.order_by(Vendor.name).all()
     return render_template('vendors.html', vendors=all_vendors)
 
 
 @app.route('/vendors/add', methods=['POST'])
+@login_required
 def add_vendor():
     name = request.form.get('name', '').strip()
     if not name:
@@ -112,6 +151,7 @@ def add_vendor():
 
 
 @app.route('/vendors/<int:vendor_id>/delete', methods=['POST'])
+@login_required
 def delete_vendor(vendor_id):
     vendor = db.get_or_404(Vendor, vendor_id)
     db.session.delete(vendor)
@@ -121,6 +161,7 @@ def delete_vendor(vendor_id):
 
 
 @app.route('/vendors/<int:vendor_id>')
+@login_required
 def vendor_detail(vendor_id):
     vendor = db.get_or_404(Vendor, vendor_id)
     sheets = PriceSheet.query.filter_by(vendor_id=vendor_id).order_by(PriceSheet.uploaded_at.desc()).all()
@@ -128,6 +169,7 @@ def vendor_detail(vendor_id):
 
 
 @app.route('/vendors/<int:vendor_id>/sheets/<int:sheet_id>/activate', methods=['POST'])
+@login_required
 def activate_sheet(vendor_id, sheet_id):
     PriceSheet.query.filter_by(vendor_id=vendor_id, is_active=True).update({'is_active': False})
     sheet = db.get_or_404(PriceSheet, sheet_id)
@@ -140,6 +182,7 @@ def activate_sheet(vendor_id, sheet_id):
 # ── Upload wizard: Step 1 — pick file ────────────────────────────────────────
 
 @app.route('/vendors/<int:vendor_id>/upload', methods=['GET', 'POST'])
+@login_required
 def upload(vendor_id):
     vendor = db.get_or_404(Vendor, vendor_id)
 
@@ -182,6 +225,7 @@ def upload(vendor_id):
 # ── Upload wizard: Step 2 — pick columns ─────────────────────────────────────
 
 @app.route('/upload/<token>/columns', methods=['GET', 'POST'])
+@login_required
 def column_picker(token):
     data = _load_tmp(token)
     if not data:
@@ -242,6 +286,7 @@ def column_picker(token):
 # ── Upload wizard: Step 3 — map cut names ────────────────────────────────────
 
 @app.route('/upload/<token>/mapping', methods=['GET', 'POST'])
+@login_required
 def cut_mapper(token):
     data = _load_tmp(token)
     if not data:
@@ -338,6 +383,7 @@ def cut_mapper(token):
 # ── Comparison ────────────────────────────────────────────────────────────────
 
 @app.route('/comparison')
+@login_required
 def comparison():
     category_filter = request.args.get('category', 'all')
     vendors = Vendor.query.order_by(Vendor.name).all()
@@ -379,12 +425,14 @@ def comparison():
 # ── Canonical cuts ────────────────────────────────────────────────────────────
 
 @app.route('/canonical-cuts')
+@login_required
 def canonical_cuts():
     cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
     return render_template('canonical_cuts.html', cuts=cuts)
 
 
 @app.route('/canonical-cuts/add', methods=['POST'])
+@login_required
 def add_canonical_cut():
     name = request.form.get('name', '').strip()
     category = request.form.get('category', 'beef')
@@ -401,6 +449,7 @@ def add_canonical_cut():
 
 
 @app.route('/canonical-cuts/<int:cut_id>/delete', methods=['POST'])
+@login_required
 def delete_canonical_cut(cut_id):
     cut = db.get_or_404(CanonicalCut, cut_id)
     db.session.delete(cut)
@@ -410,6 +459,7 @@ def delete_canonical_cut(cut_id):
 
 
 @app.route('/canonical-cuts/<int:cut_id>/edit', methods=['POST'])
+@login_required
 def edit_canonical_cut(cut_id):
     cut = db.get_or_404(CanonicalCut, cut_id)
     name = request.form.get('name', '').strip()

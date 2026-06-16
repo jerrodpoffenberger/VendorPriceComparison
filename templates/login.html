@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c1a18">
+  <title>Login — Vendor Price Comparison</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body { background: #1c1a18; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .login-wrap { background: white; border-radius: 10px; overflow: hidden; width: 100%; max-width: 380px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .login-banner { background: #1c1a18; padding: 32px 28px 24px; text-align: center; border-bottom: 4px solid #8b0000; }
+    .login-banner .cut-icon { font-size: 2.8rem; display: block; margin-bottom: 10px; }
+    .login-banner h1 { color: white; font-size: 1.25rem; font-weight: 700; margin: 0; }
+    .login-banner p { color: #aaa; font-size: 0.8rem; margin: 6px 0 0; }
+    .login-body { padding: 28px; }
+    .login-body label { display: block; font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 4px; }
+    .login-body input { width: 100%; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; margin-bottom: 16px; outline: none; transition: border-color .2s; }
+    .login-body input:focus { border-color: #8b0000; }
+    .login-btn { width: 100%; padding: 10px; background: #8b0000; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; }
+    .login-btn:hover { background: #a00000; }
+    .login-error { background: #fdf0f0; color: #8b0000; border: 1px solid #f5c6cb; border-radius: 6px; padding: 9px 12px; font-size: 0.88rem; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-banner">
+      <span class="cut-icon">🥩</span>
+      <h1>Vendor Price Comparison</h1>
+      <p>BMM Meat Market</p>
+    </div>
+    <div class="login-body">
+      {% if error %}
+        <div class="login-error">{{ error }}</div>
+      {% endif %}
+      <form method="post">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" autofocus required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="login-btn">Sign In</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
