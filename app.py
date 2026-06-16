@@ -28,8 +28,31 @@ os.makedirs(TMP_DIR, exist_ok=True)
 
 db.init_app(app)
 
+_SEED_CUTS = [
+    ("Beef Ribs",                                    "beef"),
+    ("CHOICE Boneless Ribeye",                       "beef"),
+    ("CHOICE Boneless Sirloin",                      "beef"),
+    ("CHOICE NY Strip",                              "beef"),
+    ("CHOICE Tenderloin",                            "beef"),
+    ("Chuck Roast, Shoulder Clod",                   "beef"),
+    ("Chuck Steak, Shoulder Clod",                   "beef"),
+    ("Cutlets",                                      "beef"),
+    ("Fajita; Inside Skirt",                         "beef"),
+    ("PRIME Boneless Ribeye",                        "beef"),
+    ("SELECT Bone-In Ribeye",                        "beef"),
+    ("SELECT Boneless Ribeye",                       "beef"),
+    ("SELECT Short Loins",                           "beef"),
+    ("Bone-In Pork Chops, Center Cut Loin",          "pork"),
+    ("Boneless Pork Chop, Center Cut Boneless Loin", "pork"),
+    ("Country Ribs, Rib Ends",                       "pork"),
+]
+
 with app.app_context():
     db.create_all()
+    for name, category in _SEED_CUTS:
+        if not CanonicalCut.query.filter_by(name=name).first():
+            db.session.add(CanonicalCut(name=name, category=category))
+    db.session.commit()
 
 
 # ── Temp session helpers ──────────────────────────────────────────────────────
