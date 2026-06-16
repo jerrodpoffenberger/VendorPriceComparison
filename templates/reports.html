@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Best Price Report{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h2>Best Price Report</h2>
+  <span style="font-size:0.82rem;color:#888;">Cuts grouped by lowest-price vendor</span>
+</div>
+
+{% if not has_data %}
+<div class="app-card">
+  <div class="empty-state">
+    <div style="font-size:3rem;">📊</div>
+    <p>No price data yet. Upload price sheets for your vendors to generate a report.</p>
+    <a href="{{ url_for('vendors') }}" class="btn btn-primary mt-3">Add a Vendor</a>
+  </div>
+</div>
+
+{% else %}
+
+{% for vid in sorted_vendors %}
+  {% set vendor = vendor_map[vid] %}
+  {% set rows = by_vendor[vid] %}
+  {% set sheet = active_sheets.get(vid) %}
+
+<div class="app-card" style="margin-bottom:24px;padding:0;overflow:hidden;">
+
+  <div style="background:#2c3e50;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div>
+      <span style="color:white;font-weight:700;font-size:1.05rem;">{{ vendor.name }}</span>
+      <span style="background:#8b0000;color:white;font-size:0.72rem;font-weight:700;padding:2px 9px;border-radius:20px;margin-left:10px;">
+        {{ rows|length }} cut{{ 's' if rows|length != 1 else '' }}
+      </span>
+    </div>
+    {% if sheet %}
+    <span style="color:#aaa;font-size:0.75rem;">
+      {{ sheet.filename }} &mdash; {{ sheet.uploaded_at.strftime('%m/%d/%Y') }}
+    </span>
+    {% endif %}
+  </div>
+
+  <table style="margin:0;">
+    <thead>
+      <tr>
+        <th>Cut</th>
+        <th style="width:80px;text-align:center;">Category</th>
+        <th style="width:120px;text-align:right;padding-right:24px;">Best Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set categories = rows | map(attribute='cut.category') | unique | sort | list %}
+      {% for cat in categories %}
+        {% set cat_rows = rows | selectattr('cut.category', 'equalto', cat) | sort(attribute='cut.name') | list %}
+        {% if categories|length > 1 %}
+        <tr>
+          <td colspan="3" style="background:#f5f5f5;font-size:0.72rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#8b0000;padding:6px 16px;">
+            {{ cat }}
+          </td>
+        </tr>
+        {% endif %}
+        {% for row in cat_rows %}
+        <tr>
+          <td style="font-weight:600;">{{ row.cut.name }}</td>
+          <td style="text-align:center;">
+            <span class="badge {% if cat == 'beef' %}badge-beef{% elif cat == 'pork' %}badge-pork{% else %}badge-secondary{% endif %}"
+                  style="font-size:0.7rem;">
+              {{ cat }}
+            </span>
+          </td>
+          <td style="text-align:right;padding-right:24px;">
+            <strong class="text-success" style="font-size:1rem;">${{ '%.2f'|format(row.item.price) }}</strong>
+            <span style="color:#999;font-size:0.78rem;">/{{ row.item.unit }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}
