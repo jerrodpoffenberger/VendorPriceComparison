@@ -2,130 +2,121 @@
 {% block title %}Map Cuts — {{ vendor.name }}{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center gap-3 mb-4">
-  <a href="{{ url_for('column_picker', token=token) }}" class="btn btn-sm btn-outline-secondary">
-    <i class="bi bi-arrow-left"></i>
-  </a>
-  <div>
-    <h4 class="mb-0">Step 3 of 3 — Map Cut Names</h4>
-    <small class="text-muted">{{ vendor.name }} &mdash; {{ filename }}</small>
+<div class="section-header">
+  <div class="d-flex align-center gap-3">
+    <a href="{{ url_for('column_picker', token=token) }}" class="btn btn-secondary btn-sm">← Back</a>
+    <h2>{{ vendor.name }}</h2>
   </div>
 </div>
 
+<div class="step-bar mb-4">
+  <div class="step-bar-item done"><span class="step-num">✓</span>Upload File</div>
+  <div class="step-divider"></div>
+  <div class="step-bar-item done"><span class="step-num">✓</span>Select Columns</div>
+  <div class="step-divider"></div>
+  <div class="step-bar-item active"><span class="step-num">3</span>Map Cuts</div>
+</div>
+
 {% if auto_count > 0 %}
-<div class="alert alert-success d-flex align-items-center gap-2 mb-4">
-  <i class="bi bi-check-circle-fill fs-5"></i>
-  <span><strong>{{ auto_count }} item{{ 's' if auto_count != 1 else '' }}</strong> auto-mapped from previous uploads.</span>
+<div class="alert alert-success">
+  ✓ <strong>{{ auto_count }} item{{ 's' if auto_count != 1 else '' }}</strong> auto-mapped from previous uploads.
 </div>
 {% endif %}
 
 {% if not unmapped %}
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-body text-center py-4">
-    <i class="bi bi-check-circle-fill text-success display-5 d-block mb-2"></i>
-    <p class="mb-0">All items are already mapped. Ready to import.</p>
+<div class="app-card">
+  <div class="empty-state" style="padding:32px 20px;">
+    <div style="font-size:2.5rem;">✅</div>
+    <p>All items are already mapped. Ready to import.</p>
   </div>
 </div>
 <form method="post">
-  <button type="submit" class="btn btn-success btn-lg px-5">
-    <i class="bi bi-cloud-upload me-2"></i>Import {{ auto_count }} Items
-  </button>
+  <button type="submit" class="btn btn-success btn-lg">Import {{ auto_count }} Items</button>
 </form>
 
 {% else %}
 
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-tags me-1"></i>{{ unmapped|length }} Cut{{ 's' if unmapped|length != 1 else '' }} Need Mapping</span>
-    <small class="text-light opacity-75">Map each to a canonical cut name or create a new one</small>
+<div class="app-card">
+  <div class="app-card-header">
+    {{ unmapped|length }} Cut{{ 's' if unmapped|length != 1 else '' }} Need Mapping
+    <span class="hint">Assign each to a canonical cut or create a new one</span>
   </div>
 
-  <div class="card-body p-0">
-    <form method="post" id="mapForm">
-      <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th style="width:35%">Vendor Description</th>
-              <th style="width:10%" class="text-end">Price</th>
-              <th style="width:8%">Unit</th>
-              <th>Canonical Cut</th>
-              <th id="newCutHeader" style="display:none; width:25%">New Cut Name &amp; Category</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in unmapped %}
-            <tr>
-              <td class="text-break fw-medium">{{ item.raw_description }}</td>
-              <td class="text-end">${{ '%.2f'|format(item.price) }}</td>
-              <td class="text-muted small">{{ item.unit }}</td>
-              <td>
-                <select name="cut_{{ loop.index0 }}"
-                        class="form-select form-select-sm cut-select"
-                        data-idx="{{ loop.index0 }}"
-                        onchange="handleCutChange(this)">
-                  <option value="skip">— skip —</option>
-                  {% set ns = namespace(last_cat='') %}
-                  {% for cut in canonical_cuts %}
-                    {% if cut.category != ns.last_cat %}
-                      {% if ns.last_cat != '' %}</optgroup>{% endif %}
-                      <optgroup label="{{ cut.category | title }}">
-                      {% set ns.last_cat = cut.category %}
-                    {% endif %}
-                    <option value="{{ cut.id }}">{{ cut.name }}</option>
-                  {% endfor %}
-                  {% if canonical_cuts %}</optgroup>{% endif %}
-                  <option value="new">＋ Create new cut…</option>
+  <form method="post" id="mapForm">
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:240px;">Vendor Description</th>
+            <th class="text-right" style="width:90px;">Price</th>
+            <th style="width:60px;">Unit</th>
+            <th style="min-width:220px;">Canonical Cut</th>
+            <th id="newColHeader" style="min-width:260px;display:none;">New Cut Name &amp; Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in unmapped %}
+          <tr>
+            <td class="fw-semibold">{{ item.raw_description }}</td>
+            <td class="text-right">${{ '%.2f'|format(item.price) }}</td>
+            <td class="text-muted">{{ item.unit }}</td>
+            <td>
+              <select name="cut_{{ loop.index0 }}"
+                      class="form-select form-select-sm cut-select"
+                      data-idx="{{ loop.index0 }}"
+                      onchange="handleChange(this)">
+                <option value="skip">— skip —</option>
+                {% set ns = namespace(last='') %}
+                {% for cut in canonical_cuts %}
+                  {% if cut.category != ns.last %}
+                    {% if ns.last %}</optgroup>{% endif %}
+                    <optgroup label="{{ cut.category|title }}">
+                    {% set ns.last = cut.category %}
+                  {% endif %}
+                  <option value="{{ cut.id }}">{{ cut.name }}</option>
+                {% endfor %}
+                {% if canonical_cuts %}</optgroup>{% endif %}
+                <option value="new">＋ Create new cut…</option>
+              </select>
+            </td>
+            <td class="new-cell" id="newCell_{{ loop.index0 }}" style="display:none;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input type="text" name="new_name_{{ loop.index0 }}"
+                       class="form-control form-control-sm"
+                       placeholder="Canonical name"
+                       style="min-width:140px;">
+                <select name="new_cat_{{ loop.index0 }}" class="form-select form-select-sm" style="width:85px;">
+                  <option value="beef">Beef</option>
+                  <option value="pork">Pork</option>
+                  <option value="other">Other</option>
                 </select>
-              </td>
-              <td class="new-cut-cell" id="newCell_{{ loop.index0 }}" style="display:none">
-                <div class="d-flex gap-2">
-                  <input type="text" name="new_name_{{ loop.index0 }}"
-                         class="form-control form-control-sm"
-                         placeholder="Canonical name"
-                         style="min-width:140px">
-                  <select name="new_cat_{{ loop.index0 }}" class="form-select form-select-sm" style="width:90px">
-                    <option value="beef">Beef</option>
-                    <option value="pork">Pork</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
-      <div class="p-3 border-top d-flex justify-content-between align-items-center">
-        <span class="text-muted small">Items set to "— skip —" will still be imported but won't appear in the comparison.</span>
-        <button type="submit" class="btn btn-success px-4">
-          <i class="bi bi-cloud-upload me-2"></i>Import All Items
-        </button>
-      </div>
-    </form>
-  </div>
+    <div style="padding:16px 20px;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <span class="text-muted" style="font-size:0.8rem;">Items set to "skip" are imported but won't appear in the comparison.</span>
+      <button type="submit" class="btn btn-success">Import All Items</button>
+    </div>
+  </form>
 </div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-function handleCutChange(sel) {
+function handleChange(sel) {
   const idx = sel.dataset.idx;
   const cell = document.getElementById('newCell_' + idx);
-  if (sel.value === 'new') {
-    cell.style.display = '';
-    // Make sure the header column is visible
-    document.getElementById('newCutHeader').style.display = '';
-  } else {
-    cell.style.display = 'none';
-    // Hide header only if no row has a new-cut cell visible
-    const anyCells = document.querySelectorAll('.new-cut-cell:not([style*="none"])');
-    if (anyCells.length === 0) {
-      document.getElementById('newCutHeader').style.display = 'none';
-    }
-  }
+  const isNew = sel.value === 'new';
+  cell.style.display = isNew ? '' : 'none';
+  // Show/hide the new-cut column header
+  const anyNew = document.querySelectorAll('.new-cell:not([style*="none"])').length > 0;
+  document.getElementById('newColHeader').style.display = anyNew ? '' : 'none';
 }
 </script>
 {% endblock %}

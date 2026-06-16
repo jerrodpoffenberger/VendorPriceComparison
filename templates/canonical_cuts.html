@@ -2,110 +2,107 @@
 {% block title %}Cut Names{% endblock %}
 
 {% block content %}
-<div class="row g-4">
-  <div class="col-lg-8">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h4 class="mb-0"><i class="bi bi-tags me-2"></i>Canonical Cut Names</h4>
-      <span class="text-muted small">{{ cuts|length }} cuts</span>
-    </div>
+<div class="section-header">
+  <h2>Canonical Cut Names</h2>
+  <span class="text-muted" style="font-size:0.85rem;">{{ cuts|length }} cuts</span>
+</div>
 
+<div class="layout-2col">
+  <!-- List -->
+  <div>
     {% if not cuts %}
-    <div class="card border-0 shadow-sm">
-      <div class="card-body text-center py-5 text-muted">
-        <i class="bi bi-tags display-4 d-block mb-3"></i>
+    <div class="app-card">
+      <div class="empty-state">
+        <div style="font-size:3rem;">🏷️</div>
         <p>No canonical cuts yet. They are created automatically when you upload price sheets,
-           or you can add them manually.</p>
+           or you can add them manually here.</p>
       </div>
     </div>
     {% else %}
+      {% for cat in ['beef', 'pork', 'other'] %}
+        {% set cat_cuts = cuts | selectattr('category', 'equalto', cat) | list %}
+        {% if cat_cuts %}
+        <div class="app-card mb-3">
+          <div class="app-card-header">{{ cat | title }}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cut in cat_cuts %}
+              <tr>
+                <td class="fw-semibold">{{ cut.name }}</td>
+                <td>
+                  <span class="badge {% if cut.category == 'beef' %}badge-danger{% elif cut.category == 'pork' %}badge-warning{% else %}badge-secondary{% endif %}">
+                    {{ cut.category }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <button class="btn btn-secondary btn-sm"
+                          data-bs-toggle="modal" data-bs-target="#editModal{{ cut.id }}">Edit</button>
+                  <form method="post" action="{{ url_for('delete_canonical_cut', cut_id=cut.id) }}"
+                        style="display:inline;"
+                        onsubmit="return confirm('Delete {{ cut.name }}?')">
+                    <button class="btn btn-danger btn-sm">✕</button>
+                  </form>
+                </td>
+              </tr>
 
-    {% set categories = ['beef', 'pork', 'other'] %}
-    {% for cat in categories %}
-      {% set cat_cuts = cuts | selectattr('category', 'equalto', cat) | list %}
-      {% if cat_cuts %}
-      <h6 class="text-uppercase fw-semibold mt-4 mb-2
-        {% if cat == 'beef' %}text-danger{% elif cat == 'pork' %}text-warning{% else %}text-secondary{% endif %}">
-        {{ cat | title }}
-      </h6>
-      <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle">
-          <thead class="table-light">
-            <tr><th>Name</th><th>Category</th><th></th></tr>
-          </thead>
-          <tbody>
-          {% for cut in cat_cuts %}
-          <tr>
-            <td>{{ cut.name }}</td>
-            <td><span class="badge
-              {% if cut.category == 'beef' %}bg-danger
-              {% elif cut.category == 'pork' %}bg-warning text-dark
-              {% else %}bg-secondary{% endif %}">{{ cut.category }}</span></td>
-            <td class="text-end">
-              <button class="btn btn-sm btn-outline-secondary me-1"
-                      data-bs-toggle="modal" data-bs-target="#editModal{{ cut.id }}">
-                <i class="bi bi-pencil"></i>
-              </button>
-              <form method="post" action="{{ url_for('delete_canonical_cut', cut_id=cut.id) }}"
-                    class="d-inline"
-                    onsubmit="return confirm('Delete {{ cut.name }}? Line items referencing it will lose their mapping.')">
-                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-              </form>
-            </td>
-          </tr>
-
-          <!-- Edit modal -->
-          <div class="modal fade" id="editModal{{ cut.id }}" tabindex="-1">
-            <div class="modal-dialog modal-sm">
-              <div class="modal-content">
-                <div class="modal-header">
-                  <h6 class="modal-title">Edit Cut</h6>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              <!-- Edit modal (Bootstrap) -->
+              <div class="modal fade" id="editModal{{ cut.id }}" tabindex="-1">
+                <div class="modal-dialog modal-sm">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h6 class="modal-title" style="color:white;">Edit Cut</h6>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="post" action="{{ url_for('edit_canonical_cut', cut_id=cut.id) }}">
+                      <div class="modal-body">
+                        <div class="mb-3">
+                          <label class="form-label">Name</label>
+                          <input type="text" name="name" class="form-control" value="{{ cut.name }}" required>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Category</label>
+                          <select name="category" class="form-select">
+                            <option value="beef"  {% if cut.category == 'beef'  %}selected{% endif %}>Beef</option>
+                            <option value="pork"  {% if cut.category == 'pork'  %}selected{% endif %}>Pork</option>
+                            <option value="other" {% if cut.category == 'other' %}selected{% endif %}>Other</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
-                <form method="post" action="{{ url_for('edit_canonical_cut', cut_id=cut.id) }}">
-                  <div class="modal-body">
-                    <div class="mb-3">
-                      <label class="form-label">Name</label>
-                      <input type="text" name="name" class="form-control" value="{{ cut.name }}" required>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label">Category</label>
-                      <select name="category" class="form-select">
-                        <option value="beef" {% if cut.category == 'beef' %}selected{% endif %}>Beef</option>
-                        <option value="pork" {% if cut.category == 'pork' %}selected{% endif %}>Pork</option>
-                        <option value="other" {% if cut.category == 'other' %}selected{% endif %}>Other</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                  </div>
-                </form>
               </div>
-            </div>
-          </div>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% endif %}
-    {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      {% endfor %}
     {% endif %}
   </div>
 
   <!-- Add cut -->
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-dark text-white fw-semibold">
-        <i class="bi bi-plus-circle me-1"></i>Add Cut Manually
-      </div>
-      <div class="card-body">
+  <div>
+    <div class="app-card">
+      <div class="app-card-header">Add Cut Manually</div>
+      <div class="app-card-body">
         <form method="post" action="{{ url_for('add_canonical_cut') }}">
-          <div class="mb-3">
+          <div class="form-group">
             <label class="form-label">Cut Name</label>
             <input type="text" name="name" class="form-control" placeholder="e.g. Ribeye Steak" required>
           </div>
-          <div class="mb-3">
+          <div class="form-group">
             <label class="form-label">Category</label>
             <select name="category" class="form-select">
               <option value="beef">Beef</option>
@@ -113,7 +110,7 @@
               <option value="other">Other</option>
             </select>
           </div>
-          <button type="submit" class="btn btn-primary w-100">Add Cut</button>
+          <button type="submit" class="btn btn-primary btn-w100">Add Cut</button>
         </form>
       </div>
     </div>

@@ -2,119 +2,104 @@
 {% block title %}Price Comparison{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h4 class="mb-0"><i class="bi bi-table me-2"></i>Price Comparison</h4>
-
-  <div class="d-flex gap-2 align-items-center">
-    <!-- Category filter -->
-    <div class="btn-group btn-group-sm">
+<div class="section-header">
+  <h2>Price Comparison</h2>
+  <div class="d-flex align-center gap-2" style="flex-wrap:wrap;">
+    <div class="filter-bar">
       <a href="{{ url_for('comparison', category='all') }}"
-         class="btn btn-outline-secondary {% if category_filter == 'all' %}active{% endif %}">All</a>
+         class="filter-btn {% if category_filter == 'all' %}active{% endif %}">All</a>
       <a href="{{ url_for('comparison', category='beef') }}"
-         class="btn btn-outline-danger {% if category_filter == 'beef' %}active{% endif %}">Beef</a>
+         class="filter-btn beef {% if category_filter == 'beef' %}active{% endif %}">Beef</a>
       <a href="{{ url_for('comparison', category='pork') }}"
-         class="btn btn-outline-warning {% if category_filter == 'pork' %}active{% endif %}">Pork</a>
+         class="filter-btn pork {% if category_filter == 'pork' %}active{% endif %}">Pork</a>
       <a href="{{ url_for('comparison', category='other') }}"
-         class="btn btn-outline-secondary {% if category_filter == 'other' %}active{% endif %}">Other</a>
+         class="filter-btn {% if category_filter == 'other' %}active{% endif %}">Other</a>
     </div>
-
-    <a href="{{ url_for('vendors') }}" class="btn btn-sm btn-primary">
-      <i class="bi bi-upload me-1"></i>Upload Prices
-    </a>
+    <a href="{{ url_for('vendors') }}" class="btn btn-primary btn-sm">+ Upload Prices</a>
   </div>
 </div>
 
 {% if not grouped %}
-  <div class="card border-0 shadow-sm">
-    <div class="card-body text-center py-5 text-muted">
-      <i class="bi bi-inbox display-4 d-block mb-3"></i>
-      <p class="mb-2">No price data yet.</p>
-      <a href="{{ url_for('vendors') }}" class="btn btn-primary">Add a Vendor &amp; Upload Prices</a>
-    </div>
+<div class="app-card">
+  <div class="empty-state">
+    <div style="font-size:3rem;">📋</div>
+    <p>No price data yet. Add a vendor and upload their price sheet to get started.</p>
+    <a href="{{ url_for('vendors') }}" class="btn btn-primary mt-3">Add a Vendor</a>
   </div>
+</div>
+
 {% else %}
 
-  <!-- Active sheet info -->
-  {% if active_sheets %}
-  <div class="mb-3 d-flex flex-wrap gap-2">
-    {% for v in vendors %}
-      {% if active_sheets.get(v.id) %}
-        <span class="badge bg-secondary text-white fs-7">
-          {{ v.name }}: {{ active_sheets[v.id].filename }}
-          <span class="text-light opacity-75 ms-1">
-            ({{ active_sheets[v.id].uploaded_at.strftime('%m/%d/%y') }})
-          </span>
-        </span>
-      {% else %}
-        <span class="badge bg-light text-muted border fs-7">{{ v.name }}: no sheet</span>
-      {% endif %}
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  {% for category, cuts in grouped.items() %}
-  <div class="mb-4">
-    <h5 class="text-uppercase fw-semibold mb-2
-      {% if category == 'beef' %}text-danger{% elif category == 'pork' %}text-warning{% else %}text-secondary{% endif %}">
-      {% if category == 'beef' %}<i class="bi bi-circle-fill me-1 small"></i>{% endif %}
-      {{ category | title }}
-    </h5>
-
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle comparison-table">
-        <thead class="table-dark">
-          <tr>
-            <th style="min-width:220px">Cut</th>
-            {% for v in vendors %}
-            <th class="text-center">{{ v.name }}</th>
-            {% endfor %}
-            <th class="text-center">Best Price</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for cut in cuts %}
-            {% set cut_prices = price_map.get(cut.id, {}) %}
-            {# find lowest price vendor #}
-            {% set ns = namespace(min_price=None, min_vid=None) %}
-            {% for v in vendors %}
-              {% set item = cut_prices.get(v.id) %}
-              {% if item %}
-                {% if ns.min_price is none or item.price < ns.min_price %}
-                  {% set ns.min_price = item.price %}
-                  {% set ns.min_vid = v.id %}
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-          <tr>
-            <td class="fw-medium">{{ cut.name }}</td>
-            {% for v in vendors %}
-              {% set item = cut_prices.get(v.id) %}
-              <td class="text-center
-                {% if item and v.id == ns.min_vid %}cell-best{% endif %}">
-                {% if item %}
-                  ${{ '%.2f'|format(item.price) }}
-                  <small class="text-muted">/{{ item.unit }}</small>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-            {% endfor %}
-            <td class="text-center">
-              {% if ns.min_price is not none %}
-                {% for v in vendors %}{% if v.id == ns.min_vid %}
-                  <span class="badge bg-success">{{ v.name }}</span>
-                  <span class="text-success fw-bold ms-1">${{ '%.2f'|format(ns.min_price) }}</span>
-                {% endif %}{% endfor %}
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+{% if active_sheets %}
+<div class="d-flex" style="flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+  {% for v in vendors %}
+    {% set sheet = active_sheets.get(v.id) %}
+    {% if sheet %}
+      <span class="badge badge-secondary" style="font-size:0.72rem;padding:4px 10px;">
+        {{ v.name }}: {{ sheet.filename }}
+        <span style="opacity:0.6;margin-left:4px;">{{ sheet.uploaded_at.strftime('%m/%d/%y') }}</span>
+      </span>
+    {% else %}
+      <span class="badge badge-secondary" style="font-size:0.72rem;padding:4px 10px;opacity:0.5;">
+        {{ v.name }}: no sheet
+      </span>
+    {% endif %}
   {% endfor %}
+</div>
+{% endif %}
+
+{% for category, cuts in grouped.items() %}
+<div class="table-wrap" style="margin-bottom:28px;">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:240px;">
+          {{ category | upper }}
+        </th>
+        {% for v in vendors %}
+        <th class="text-center">{{ v.name }}</th>
+        {% endfor %}
+        <th class="text-center">Best Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cut in cuts %}
+        {% set cut_prices = price_map.get(cut.id, {}) %}
+        {% set ns = namespace(min_price=None, min_vid=None) %}
+        {% for v in vendors %}
+          {% set item = cut_prices.get(v.id) %}
+          {% if item and (ns.min_price is none or item.price < ns.min_price) %}
+            {% set ns.min_price = item.price %}
+            {% set ns.min_vid = v.id %}
+          {% endif %}
+        {% endfor %}
+      <tr>
+        <td class="fw-semibold">{{ cut.name }}</td>
+        {% for v in vendors %}
+          {% set item = cut_prices.get(v.id) %}
+          <td class="text-center {% if item and v.id == ns.min_vid %}cell-best{% endif %}">
+            {% if item %}
+              ${{ '%.2f'|format(item.price) }}<span class="text-muted" style="font-size:0.78rem;">/{{ item.unit }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        {% endfor %}
+        <td class="text-center">
+          {% if ns.min_price is not none %}
+            {% for v in vendors %}{% if v.id == ns.min_vid %}
+              <span class="badge badge-success">{{ v.name }}</span>
+              <strong class="text-success" style="margin-left:6px;">${{ '%.2f'|format(ns.min_price) }}</strong>
+            {% endif %}{% endfor %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
 {% endif %}
 {% endblock %}
