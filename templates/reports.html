@@ -2,9 +2,17 @@
 {% block title %}Best Price Report{% endblock %}
 
 {% block content %}
-<div class="section-header">
-  <h2>Best Price Report</h2>
-  <span style="font-size:0.82rem;color:#888;">Cuts grouped by lowest-price vendor</span>
+<div class="section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+  <div>
+    <h2>Best Price Report</h2>
+    <span style="font-size:0.82rem;color:#888;">Cuts grouped by lowest-price vendor</span>
+  </div>
+  {% if has_data %}
+  <a href="{{ url_for('reports_print') }}" target="_blank"
+     style="background:#8b0000;color:white;padding:8px 18px;border-radius:6px;font-size:0.88rem;font-weight:700;text-decoration:none;white-space:nowrap;">
+    &#x1F5A8; Print / Save as PDF
+  </a>
+  {% endif %}
 </div>
 
 {% if not has_data %}

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Best Price Report — BMM Meat Market</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      color: #111;
+      background: white;
+      padding: 20px 28px;
+    }
+
+    /* ── Screen-only controls ─────────────────────────── */
+    .screen-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #ddd;
+    }
+    .btn-print {
+      background: #8b0000;
+      color: white;
+      border: none;
+      padding: 9px 22px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+    }
+    .btn-print:hover { background: #a00000; }
+    .btn-close-win {
+      background: none;
+      border: 1.5px solid #ccc;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      color: #555;
+      cursor: pointer;
+    }
+    .btn-close-win:hover { border-color: #999; color: #222; }
+    @media print { .screen-bar { display: none; } }
+
+    /* ── Report header ────────────────────────────────── */
+    .report-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #8b0000;
+    }
+    .report-header h1 {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #1c1a18;
+      line-height: 1.1;
+    }
+    .report-header .sub {
+      font-size: 9pt;
+      color: #777;
+      margin-top: 3px;
+    }
+    .report-header .date-block {
+      text-align: right;
+      font-size: 9pt;
+      color: #555;
+      line-height: 1.6;
+    }
+    .report-header .date-block strong {
+      display: block;
+      font-size: 10pt;
+      color: #111;
+    }
+
+    /* ── Vendor sections ──────────────────────────────── */
+    .vendor-section {
+      margin-bottom: 22px;
+      page-break-inside: avoid;
+    }
+    .vendor-heading {
+      background: #1c1a18;
+      color: white;
+      padding: 7px 12px;
+      font-size: 11pt;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .vendor-heading .cut-count {
+      background: #8b0000;
+      color: white;
+      font-size: 8pt;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+    .vendor-sheet {
+      font-size: 8pt;
+      color: #bbb;
+      font-weight: 400;
+      margin-left: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+    }
+    thead tr {
+      background: #f0f0f0;
+    }
+    th {
+      text-align: left;
+      padding: 5px 10px;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #555;
+      border-bottom: 1px solid #ccc;
+    }
+    th.right { text-align: right; }
+    td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #eee;
+      vertical-align: middle;
+    }
+    td.price {
+      text-align: right;
+      font-weight: 700;
+      font-size: 11pt;
+      color: #1a6b2f;
+      white-space: nowrap;
+    }
+    td.unit {
+      color: #888;
+      font-size: 8.5pt;
+    }
+    .cat-divider td {
+      background: #f7f7f7;
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #8b0000;
+      padding: 4px 10px;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Empty state ─────────────────────────────────── */
+    .empty { padding: 40px; text-align: center; color: #888; font-size: 12pt; }
+
+    /* ── Footer ──────────────────────────────────────── */
+    @page {
+      margin: 18mm 15mm 18mm 15mm;
+      @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #999; }
+    }
+    .report-footer {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #ddd;
+      font-size: 8pt;
+      color: #aaa;
+      text-align: center;
+    }
+    @media print { .report-footer { display: none; } }
+  </style>
+</head>
+<body>
+
+<div class="screen-bar">
+  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+  <button class="btn-close-win" onclick="window.close()">Close</button>
+  <span style="font-size:0.82rem;color:#999;">Use your browser's print dialog to save as PDF.</span>
+</div>
+
+<div class="report-header">
+  <div>
+    <h1>Best Price Report</h1>
+    <div class="sub">BMM Meat Market &mdash; Vendor Price Comparison</div>
+  </div>
+  <div class="date-block">
+    <strong>{{ generated.strftime('%B %d, %Y') }}</strong>
+    {{ generated.strftime('%I:%M %p') }}
+  </div>
+</div>
+
+{% if not has_data %}
+  <div class="empty">No price data available. Upload price sheets for your vendors first.</div>
+
+{% else %}
+
+{% for vid in sorted_vendors %}
+  {% set vendor = vendor_map[vid] %}
+  {% set rows = by_vendor[vid] %}
+  {% set sheet = active_sheets.get(vid) %}
+
+  <div class="vendor-section">
+    <div class="vendor-heading">
+      <span>
+        {{ vendor.name }}
+        {% if sheet %}
+          <span class="vendor-sheet">{{ sheet.filename }} &mdash; {{ sheet.uploaded_at.strftime('%m/%d/%Y') }}</span>
+        {% endif %}
+      </span>
+      <span class="cut-count">{{ rows|length }} cut{{ 's' if rows|length != 1 else '' }}</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Cut</th>
+          <th style="width:80px;">Category</th>
+          <th class="right" style="width:100px;">Price</th>
+          <th style="width:50px;">Unit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set categories = rows | map(attribute='cut.category') | unique | sort | list %}
+        {% for cat in categories %}
+          {% set cat_rows = rows | selectattr('cut.category', 'equalto', cat) | sort(attribute='cut.name') | list %}
+          {% if categories|length > 1 %}
+          <tr class="cat-divider">
+            <td colspan="4">{{ cat }}</td>
+          </tr>
+          {% endif %}
+          {% for row in cat_rows %}
+          <tr>
+            <td>{{ row.cut.name }}</td>
+            <td style="font-size:9pt;color:#555;">{{ row.cut.category }}</td>
+            <td class="price">${{ '%.2f'|format(row.item.price) }}</td>
+            <td class="unit">/ {{ row.item.unit }}</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endfor %}
+
+{% endif %}
+
+<div class="report-footer">
+  Generated {{ generated.strftime('%B %d, %Y at %I:%M %p') }} &mdash; BMM Meat Market Vendor Price Comparison
+</div>
+
+<script>
+  window.addEventListener('load', function () { window.print(); });
+</script>
+</body>
+</html>

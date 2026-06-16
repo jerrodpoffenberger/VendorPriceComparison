@@ -422,6 +422,72 @@ def comparison():
                            category_filter=category_filter)
 
 
+# ── Reports ───────────────────────────────────────────────────────────────────
+
+def _build_report_data():
+    """Shared data logic for /reports and /reports/print."""
+    vendors = Vendor.query.order_by(Vendor.name).all()
+    active_sheets = {}
+    for v in vendors:
+        sheet = (PriceSheet.query
+                 .filter_by(vendor_id=v.id, is_active=True)
+                 .order_by(PriceSheet.uploaded_at.desc())
+                 .first())
+        if sheet:
+            active_sheets[v.id] = sheet
+
+    price_map = {}
+    for v in vendors:
+        sheet = active_sheets.get(v.id)
+        if not sheet:
+            continue
+        for item in LineItem.query.filter_by(price_sheet_id=sheet.id).all():
+            if item.canonical_cut_id:
+                price_map.setdefault(item.canonical_cut_id, {})[v.id] = item
+
+    cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
+    vendor_map = {v.id: v for v in vendors}
+
+    by_vendor = {}
+    for cut in cuts:
+        cut_prices = price_map.get(cut.id, {})
+        if not cut_prices:
+            continue
+        best_vid = min(cut_prices, key=lambda vid: cut_prices[vid].price)
+        by_vendor.setdefault(best_vid, []).append({
+            "cut": cut,
+            "item": cut_prices[best_vid],
+        })
+
+    sorted_vendors = sorted(by_vendor.keys(), key=lambda vid: vendor_map[vid].name)
+    return by_vendor, sorted_vendors, vendor_map, active_sheets
+
+
+@app.route('/reports')
+@login_required
+def reports():
+    by_vendor, sorted_vendors, vendor_map, active_sheets = _build_report_data()
+    return render_template('reports.html',
+                           by_vendor=by_vendor,
+                           sorted_vendors=sorted_vendors,
+                           vendor_map=vendor_map,
+                           active_sheets=active_sheets,
+                           has_data=bool(by_vendor))
+
+
+@app.route('/reports/print')
+@login_required
+def reports_print():
+    by_vendor, sorted_vendors, vendor_map, active_sheets = _build_report_data()
+    return render_template('reports_print.html',
+                           by_vendor=by_vendor,
+                           sorted_vendors=sorted_vendors,
+                           vendor_map=vendor_map,
+                           active_sheets=active_sheets,
+                           has_data=bool(by_vendor),
+                           generated=datetime.now())
+
+
 # ── Canonical cuts ────────────────────────────────────────────────────────────
 
 @app.route('/canonical-cuts')
