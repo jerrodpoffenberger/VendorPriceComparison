@@ -453,7 +453,7 @@ def column_picker(token):
     return render_template('column_picker.html',
                            vendor=vendor, token=token,
                            columns=columns,
-                           preview=_preview_rows(rows),
+                           preview=rows[:10],
                            filename=data['filename'],
                            raw_rows=_preview_rows(raw_rows),
                            raw_rows_all=raw_rows[:40],
@@ -532,6 +532,9 @@ def cut_mapper(token):
             seen_unmapped.add(desc)
     auto_count = len(items) - len(unmapped)
     canonical_cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
+    back_url = (url_for('price_picker', token=token)
+                if data.get('pending')
+                else url_for('column_picker', token=token))
 
     if request.method == 'POST':
         cut_by_id = {c.id: c for c in CanonicalCut.query.all()}
@@ -604,7 +607,8 @@ def cut_mapper(token):
                            vendor=vendor, token=token,
                            filename=filename, unmapped=unmapped,
                            auto_count=auto_count,
-                           canonical_cuts=canonical_cuts)
+                           canonical_cuts=canonical_cuts,
+                           back_url=back_url)
 
 
 # ── Comparison ────────────────────────────────────────────────────────────────
