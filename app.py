@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 
 from extensions import db
 from models import Vendor, PriceSheet, CanonicalCut, CutMapping, LineItem
-from file_parser import parse_file, clean_price
+from file_parser import parse_file, parse_excel_raw, clean_price
 
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'xlsm', 'csv', 'pdf'}
 
@@ -284,16 +284,34 @@ def upload(vendor_id):
             flash('No data found in file.', 'danger')
             return redirect(request.url)
 
+        ext = filename.rsplit('.', 1)[1].lower()
+        raw_rows, col_count = [], 0
+        if ext in ('xlsx', 'xls', 'xlsm'):
+            try:
+                raw_rows, col_count = parse_excel_raw(save_path)
+            except Exception:
+                pass
+
         token = str(uuid.uuid4())
         _save_tmp(token, {
             'vendor_id': vendor_id,
             'filename': filename,
             'save_path': save_path,
             'rows': rows,
+            'raw_rows': raw_rows,
+            'col_count': col_count,
         })
         return redirect(url_for('column_picker', token=token))
 
     return render_template('upload.html', vendor=vendor)
+
+
+def _col_letter(idx: int) -> str:
+    s, n = '', idx + 1
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        s = chr(65 + rem) + s
+    return s
 
 
 # ── Upload wizard: Step 2 — pick columns ─────────────────────────────────────
@@ -310,8 +328,46 @@ def column_picker(token):
     rows = data['rows']
     columns = list(rows[0].keys()) if rows else []
     preview = rows[:6]
+    raw_rows = data.get('raw_rows', [])
+    col_count = data.get('col_count', 0)
+    col_letters = [_col_letter(i) for i in range(col_count)]
 
     if request.method == 'POST':
+        mode = request.form.get('mode', 'simple')
+
+        if mode == 'multigroup':
+            items, seen = [], set()
+            g = 0
+            while True:
+                desc_col = request.form.get(f'group_{g}_desc')
+                price_col = request.form.get(f'group_{g}_price')
+                if desc_col is None:
+                    break
+                try:
+                    d_idx, p_idx = int(desc_col), int(price_col)
+                except (ValueError, TypeError):
+                    g += 1
+                    continue
+                for raw_row in raw_rows:
+                    if len(raw_row) <= max(d_idx, p_idx):
+                        continue
+                    desc = raw_row[d_idx].strip()
+                    price = clean_price(raw_row[p_idx])
+                    if not desc or price is None or desc in seen:
+                        continue
+                    seen.add(desc)
+                    items.append({'raw_description': desc, 'price': price, 'unit': 'lb'})
+                g += 1
+
+            if not items:
+                flash('No valid price rows found. Check your column selections.', 'danger')
+                return redirect(request.url)
+
+            data.update({'mode': 'multigroup', 'items': items})
+            _save_tmp(token, data)
+            return redirect(url_for('cut_mapper', token=token))
+
+        # ── Simple mode ────────────────────────────────────────────────────────
         desc_field = request.form.get('desc_field', '').strip()
         price_field = request.form.get('price_field', '').strip()
         unit_field = request.form.get('unit_field', '').strip() or None
@@ -320,25 +376,20 @@ def column_picker(token):
             flash('Please select both a description and a price column.', 'danger')
             return redirect(request.url)
 
-        # Extract unique items using the chosen columns
-        items = []
-        seen = set()
+        items, seen = [], set()
         for row in rows:
             desc = row.get(desc_field)
             price_raw = row.get(price_field)
             unit_raw = row.get(unit_field) if unit_field else None
-
             if not desc or not price_raw:
                 continue
             price = clean_price(price_raw)
             if price is None:
                 continue
-
             desc = str(desc).strip()
             if not desc or desc in seen:
                 continue
             seen.add(desc)
-
             unit = str(unit_raw).strip().lower() if unit_raw else 'lb'
             items.append({'raw_description': desc, 'price': price, 'unit': unit})
 
@@ -354,7 +405,9 @@ def column_picker(token):
     return render_template('column_picker.html',
                            vendor=vendor, token=token,
                            columns=columns, preview=preview,
-                           filename=data['filename'])
+                           filename=data['filename'],
+                           raw_rows=raw_rows[:12],
+                           col_letters=col_letters)
 
 
 # ── Upload wizard: Step 3 — map cut names ────────────────────────────────────

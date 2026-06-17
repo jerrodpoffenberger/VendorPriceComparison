@@ -93,6 +93,20 @@ def parse_pdf(filepath: str) -> list[dict]:
     return rows
 
 
+def parse_excel_raw(filepath: str) -> tuple[list[list], int]:
+    """Return (raw_rows, col_count) preserving column positions for multi-group picking."""
+    import openpyxl
+    wb = openpyxl.load_workbook(filepath, data_only=True)
+    ws = wb.active
+    raw, col_count = [], 0
+    for row in ws.iter_rows(values_only=True):
+        values = [str(v) if v is not None else '' for v in row]
+        if any(v for v in values):
+            raw.append(values)
+            col_count = max(col_count, len(values))
+    return raw, col_count
+
+
 def parse_file(filepath: str) -> list[dict]:
     ext = os.path.splitext(filepath)[1].lower()
     if ext in ('.xlsx', '.xls', '.xlsm'):

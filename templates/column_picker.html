@@ -17,72 +17,271 @@
   <div class="step-bar-item"><span class="step-num">3</span>Map Cuts</div>
 </div>
 
-<!-- File preview -->
-<div class="app-card mb-4">
-  <div class="app-card-header">
-    File Preview — {{ filename }}
-    <span class="hint">First 6 rows</span>
+<!-- Mode tabs -->
+<div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;">
+  <button type="button" class="mode-tab-btn active" id="tab-simple" onclick="setMode('simple')">
+    Simple Mode
+  </button>
+  {% if col_letters %}
+  <button type="button" class="mode-tab-btn" id="tab-multigroup" onclick="setMode('multigroup')">
+    Multi-Group Mode
+    <span style="font-size:.7rem;font-weight:400;margin-left:6px;opacity:.7;">for side-by-side column layouts</span>
+  </button>
+  {% endif %}
+</div>
+
+<!-- ── SIMPLE MODE ──────────────────────────────────────────────────────────── -->
+<div id="pane-simple">
+  <div class="app-card mb-4">
+    <div class="app-card-header">
+      File Preview — {{ filename }}
+      <span class="hint">First 6 rows</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in preview %}
+          <tr>{% for col in columns %}<td>{{ row.get(col) or '' }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
-  <div style="overflow-x:auto;">
-    <table>
-      <thead>
-        <tr>
-          {% for col in columns %}
-          <th>{{ col }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in preview %}
-        <tr>
-          {% for col in columns %}
-          <td>{{ row.get(col) or '' }}</td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  <div class="layout-center">
+    <div class="app-card">
+      <div class="app-card-header">Which columns contain…</div>
+      <div class="app-card-body">
+        <form method="post" id="form-simple">
+          <input type="hidden" name="mode" value="simple">
+          <div class="form-group">
+            <label class="form-label">Cut Description <span class="req">*</span></label>
+            <select name="desc_field" class="form-select" required>
+              <option value="">— select column —</option>
+              {% for col in columns %}<option value="{{ col }}">{{ col }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price <span class="req">*</span></label>
+            <select name="price_field" class="form-select" required>
+              <option value="">— select column —</option>
+              {% for col in columns %}<option value="{{ col }}">{{ col }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit <span style="color:#888;font-weight:400;">(optional — defaults to "lb")</span></label>
+            <select name="unit_field" class="form-select">
+              <option value="">— not in a separate column —</option>
+              {% for col in columns %}<option value="{{ col }}">{{ col }}</option>{% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-w100">Continue to Cut Mapping →</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Column selection -->
-<div class="layout-center">
+<!-- ── MULTI-GROUP MODE ─────────────────────────────────────────────────────── -->
+{% if col_letters %}
+<div id="pane-multigroup" style="display:none;">
+  <div class="app-card mb-4">
+    <div class="app-card-header">
+      File Preview — {{ filename }}
+      <span class="hint">Columns shown by letter (A, B, C…)</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="font-size:.78rem;">
+        <thead>
+          <tr>
+            <th style="background:#4a5568;color:#fff;min-width:28px;text-align:center;">#</th>
+            {% for letter in col_letters %}
+            <th style="background:#4a5568;color:#fff;min-width:60px;text-align:center;">{{ letter }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in raw_rows %}
+          <tr>
+            <td style="color:#aaa;text-align:center;font-size:.72rem;">{{ loop.index }}</td>
+            {% for letter in col_letters %}
+            {% set val = row[loop.index0] if loop.index0 < row|length else '' %}
+            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                title="{{ val }}">{{ val }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="app-card">
-    <div class="app-card-header">Which columns contain…</div>
+    <div class="app-card-header">Define Column Groups</div>
     <div class="app-card-body">
-      <form method="post">
-        <div class="form-group">
-          <label class="form-label">Cut Description <span class="req">*</span></label>
-          <select name="desc_field" class="form-select" required>
-            <option value="">— select column —</option>
-            {% for col in columns %}
-            <option value="{{ col }}">{{ col }}</option>
-            {% endfor %}
-          </select>
+      <p style="font-size:.85rem;color:#666;margin-bottom:1rem;">
+        For each side-by-side product group in the file, specify which column holds the
+        cut description and which holds the price. All groups are extracted and combined.
+      </p>
+
+      <form method="post" id="form-multigroup">
+        <input type="hidden" name="mode" value="multigroup">
+
+        <div id="groups-container">
+          <!-- Group 0 is always present -->
+          <div class="mg-group" data-idx="0">
+            <div class="mg-group-header">
+              <span class="mg-group-label">Group 1</span>
+              <button type="button" class="btn btn-danger btn-sm mg-remove" style="display:none;"
+                      onclick="removeGroup(this)">Remove</button>
+            </div>
+            <div class="mg-group-body">
+              <div class="mg-field">
+                <label class="form-label">Description column</label>
+                <select class="form-select mg-desc" name="group_0_desc" required>
+                  {% for letter in col_letters %}
+                  <option value="{{ loop.index0 }}">{{ letter }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="mg-field">
+                <label class="form-label">Price column</label>
+                <select class="form-select mg-price" name="group_0_price" required>
+                  {% for letter in col_letters %}
+                  <option value="{{ loop.index0 }}">{{ letter }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Price <span class="req">*</span></label>
-          <select name="price_field" class="form-select" required>
-            <option value="">— select column —</option>
-            {% for col in columns %}
-            <option value="{{ col }}">{{ col }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Unit <span style="color:#888;font-weight:400;">(optional — defaults to "lb")</span></label>
-          <select name="unit_field" class="form-select">
-            <option value="">— not in a separate column —</option>
-            {% for col in columns %}
-            <option value="{{ col }}">{{ col }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-lg btn-w100">
+
+        <button type="button" class="btn btn-outline" style="margin-top:.75rem;" onclick="addGroup()">
+          + Add Column Group
+        </button>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-w100" style="margin-top:1.25rem;">
           Continue to Cut Mapping →
         </button>
       </form>
     </div>
   </div>
 </div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+.mode-tab-btn {
+  background: none;
+  border: none;
+  padding: 9px 20px;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #888;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.mode-tab-btn.active { color: #8b0000; border-bottom-color: #8b0000; }
+.mode-tab-btn:hover  { color: #8b0000; }
+
+.mg-group {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: .75rem;
+  overflow: hidden;
+}
+.mg-group-header {
+  background: #ecf0f1;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mg-group-label { font-weight: 700; font-size: .82rem; color: #555; }
+.mg-group-body {
+  padding: 12px 14px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.mg-field { flex: 1; min-width: 160px; }
+</style>
+
+<script>
+var colLetters = {{ col_letters | tojson }};
+var groupCount = 1;
+
+function setMode(mode) {
+  document.getElementById('pane-simple').style.display      = mode === 'simple'     ? '' : 'none';
+  {% if col_letters %}
+  document.getElementById('pane-multigroup').style.display  = mode === 'multigroup' ? '' : 'none';
+  {% endif %}
+  document.getElementById('tab-simple').classList.toggle('active',     mode === 'simple');
+  {% if col_letters %}
+  document.getElementById('tab-multigroup').classList.toggle('active', mode === 'multigroup');
+  {% endif %}
+}
+
+function buildColOptions(selectedIdx) {
+  return colLetters.map(function(letter, i) {
+    return '<option value="' + i + '"' + (i === selectedIdx ? ' selected' : '') + '>' + letter + '</option>';
+  }).join('');
+}
+
+function addGroup() {
+  var idx = groupCount;
+  groupCount++;
+  var div = document.createElement('div');
+  div.className = 'mg-group';
+  div.dataset.idx = idx;
+  div.innerHTML =
+    '<div class="mg-group-header">' +
+      '<span class="mg-group-label">Group ' + groupCount + '</span>' +
+      '<button type="button" class="btn btn-danger btn-sm mg-remove" onclick="removeGroup(this)">Remove</button>' +
+    '</div>' +
+    '<div class="mg-group-body">' +
+      '<div class="mg-field"><label class="form-label">Description column</label>' +
+        '<select class="form-select mg-desc" name="group_' + idx + '_desc">' + buildColOptions(0) + '</select>' +
+      '</div>' +
+      '<div class="mg-field"><label class="form-label">Price column</label>' +
+        '<select class="form-select mg-price" name="group_' + idx + '_price">' + buildColOptions(1) + '</select>' +
+      '</div>' +
+    '</div>';
+  document.getElementById('groups-container').appendChild(div);
+  updateRemoveButtons();
+  renumberGroups();
+}
+
+function removeGroup(btn) {
+  btn.closest('.mg-group').remove();
+  renumberGroups();
+  updateRemoveButtons();
+}
+
+function renumberGroups() {
+  var groups = document.querySelectorAll('#groups-container .mg-group');
+  groups.forEach(function(g, i) {
+    g.dataset.idx = i;
+    g.querySelector('.mg-group-label').textContent = 'Group ' + (i + 1);
+    g.querySelector('.mg-desc').name  = 'group_' + i + '_desc';
+    g.querySelector('.mg-price').name = 'group_' + i + '_price';
+  });
+}
+
+function updateRemoveButtons() {
+  var groups = document.querySelectorAll('#groups-container .mg-group');
+  groups.forEach(function(g, i) {
+    var btn = g.querySelector('.mg-remove');
+    if (btn) btn.style.display = groups.length > 1 ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}
