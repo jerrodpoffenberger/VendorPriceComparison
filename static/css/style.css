@@ -251,6 +251,50 @@ td.cell-em   { text-align: right; }
 .empty-state  { text-align: center; padding: 48px 20px; color: #aaa; }
 .empty-state p { margin-top: 12px; font-size: 0.9rem; }
 
+/* ── Vendor drop zone ────────────────────────────────────────────────────── */
+.item-row-vendor {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.vendor-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+.vendor-dropzone {
+  border: 2px dashed #d5d5d5;
+  border-radius: 6px;
+  padding: 9px 16px;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #bbb;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  background: #fafafa;
+  user-select: none;
+}
+.vendor-dropzone.drag-over {
+  border-color: #8b0000;
+  background: #fdf3f3;
+  color: #8b0000;
+}
+.vendor-dropzone.uploading {
+  border-color: #27ae60;
+  background: #eafaf1;
+  color: #1e8449;
+  cursor: default;
+}
+.drop-browse {
+  color: #8b0000;
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
 /* ── Two-col layout ──────────────────────────────────────────────────────── */
 .layout-2col { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
 .layout-center { max-width: 520px; margin: 0 auto; }
