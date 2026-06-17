@@ -49,6 +49,7 @@
         </thead>
         <tbody>
           {% for item in pending %}
+          {% set iidx = loop.index0 %}
           <tr>
             <td class="fw-semibold" style="font-size:.88rem;vertical-align:top;padding-top:12px;">
               {{ item.raw_description }}
@@ -56,7 +57,7 @@
             <td>
               {% if item.options|length == 1 %}
                 {# Single price — auto-included, show as locked #}
-                <input type="hidden" name="price_{{ loop.index0 }}"
+                <input type="hidden" name="price_{{ iidx }}"
                        value="{{ item.options[0].col }}:{{ item.options[0].price }}">
                 <span class="price-badge price-locked">
                   {{ item.options[0].col }}: ${{ '%.2f'|format(item.options[0].price) }}
@@ -66,7 +67,7 @@
                   {% for opt in item.options %}
                   <label class="price-opt-label {% if loop.first %}selected{% endif %}">
                     <input type="checkbox"
-                           name="price_{{ loop.index0 }}"
+                           name="price_{{ iidx }}"
                            value="{{ opt.col }}:{{ opt.price }}"
                            {% if loop.first %}checked{% endif %}
                            onchange="toggleOpt(this)">
