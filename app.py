@@ -456,6 +456,7 @@ def column_picker(token):
                            preview=_preview_rows(rows),
                            filename=data['filename'],
                            raw_rows=_preview_rows(raw_rows),
+                           raw_rows_all=raw_rows[:40],
                            col_letters=col_letters)
 
 

@@ -20,28 +20,28 @@
 <!-- Mode tabs -->
 <div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:2px solid #e0e0e0;">
   <button type="button" class="mode-tab-btn active" id="tab-simple" onclick="setMode('simple')">
-    Simple Mode
+    Simple
   </button>
   {% if col_letters %}
+  <button type="button" class="mode-tab-btn" id="tab-visual" onclick="setMode('visual')">
+    Visual Map
+    <span style="font-size:.7rem;font-weight:400;margin-left:5px;opacity:.7;">click the sheet</span>
+  </button>
   <button type="button" class="mode-tab-btn" id="tab-multigroup" onclick="setMode('multigroup')">
-    Multi-Group Mode
-    <span style="font-size:.7rem;font-weight:400;margin-left:6px;opacity:.7;">for side-by-side column layouts</span>
+    Multi-Group
+    <span style="font-size:.7rem;font-weight:400;margin-left:5px;opacity:.7;">dropdowns</span>
   </button>
   {% endif %}
 </div>
 
-<!-- ── SIMPLE MODE ──────────────────────────────────────────────────────────── -->
+
+{# ── SIMPLE MODE ──────────────────────────────────────────────────────────── #}
 <div id="pane-simple">
   <div class="app-card mb-4">
-    <div class="app-card-header">
-      File Preview — {{ filename }}
-      <span class="hint">First 6 rows</span>
-    </div>
+    <div class="app-card-header">File Preview — {{ filename }}<span class="hint">Data rows</span></div>
     <div style="overflow-x:auto;">
       <table>
-        <thead>
-          <tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr>
-        </thead>
+        <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
         <tbody>
           {% for row in preview %}
           <tr>{% for col in columns %}<td>{{ row.get(col) or '' }}</td>{% endfor %}</tr>
@@ -50,12 +50,11 @@
       </table>
     </div>
   </div>
-
   <div class="layout-center">
     <div class="app-card">
       <div class="app-card-header">Which columns contain…</div>
       <div class="app-card-body">
-        <form method="post" id="form-simple">
+        <form method="post">
           <input type="hidden" name="mode" value="simple">
           <div class="form-group">
             <label class="form-label">Cut Description <span class="req">*</span></label>
@@ -72,7 +71,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Unit <span style="color:#888;font-weight:400;">(optional — defaults to "lb")</span></label>
+            <label class="form-label">Unit <span style="color:#888;font-weight:400;">(optional)</span></label>
             <select name="unit_field" class="form-select">
               <option value="">— not in a separate column —</option>
               {% for col in columns %}<option value="{{ col }}">{{ col }}</option>{% endfor %}
@@ -85,14 +84,102 @@
   </div>
 </div>
 
-<!-- ── MULTI-GROUP MODE ─────────────────────────────────────────────────────── -->
+
 {% if col_letters %}
+{# ── VISUAL MAP MODE ──────────────────────────────────────────────────────── #}
+<div id="pane-visual" style="display:none;">
+  <div style="display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start;">
+
+    <!-- Spreadsheet -->
+    <div class="app-card" style="overflow:hidden;">
+      <div class="app-card-header">
+        {{ filename }}
+        <span class="hint">Click a column letter, then assign it in the panel →</span>
+      </div>
+      <div style="overflow-x:auto;max-height:520px;overflow-y:auto;">
+        <table id="vtable" style="font-size:.76rem;border-collapse:collapse;white-space:nowrap;">
+          <thead style="position:sticky;top:0;z-index:2;">
+            <tr>
+              <th style="background:#374151;color:#fff;padding:6px 8px;min-width:32px;text-align:center;">#</th>
+              {% for letter in col_letters %}
+              <th class="vcol-hdr" id="vhdr-{{ loop.index0 }}"
+                  data-colidx="{{ loop.index0 }}"
+                  onclick="clickVisualCol({{ loop.index0 }})"
+                  title="Column {{ letter }}"
+                  style="background:#4a5568;color:#fff;padding:6px 10px;min-width:58px;text-align:center;cursor:pointer;user-select:none;">
+                {{ letter }}
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in raw_rows_all %}
+            <tr>
+              <td style="color:#aaa;text-align:center;padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:.7rem;">{{ loop.index }}</td>
+              {% for letter in col_letters %}
+              {% set val = row[loop.index0] if loop.index0 < row|length else '' %}
+              <td class="vcol-cell" data-colidx="{{ loop.index0 }}"
+                  title="{{ val }}"
+                  style="padding:4px 8px;border-bottom:1px solid #f0f0f0;max-width:110px;overflow:hidden;text-overflow:ellipsis;">
+                {{ val }}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div style="position:sticky;top:16px;">
+
+      <!-- Mode toggle -->
+      <div class="app-card" style="margin-bottom:12px;">
+        <div class="app-card-header" style="padding:10px 14px;">Mode</div>
+        <div style="padding:10px;display:flex;gap:6px;">
+          <button type="button" id="btn-vmode-desc" onclick="setVMode('desc')"
+                  class="vmode-btn active" style="flex:1;">
+            📋 Description
+          </button>
+          <button type="button" id="btn-vmode-price" onclick="setVMode('price')"
+                  class="vmode-btn" style="flex:1;">
+            💲 Price
+          </button>
+        </div>
+        <div id="vmode-hint" style="padding:0 12px 10px;font-size:.75rem;color:#888;"></div>
+      </div>
+
+      <!-- Groups -->
+      <div class="app-card" style="margin-bottom:12px;">
+        <div class="app-card-header" style="padding:10px 14px;">Groups</div>
+        <div style="padding:10px;">
+          <div id="vgroups-list">
+            <p style="color:#aaa;font-size:.8rem;text-align:center;padding:8px 0;">
+              Switch to Description mode<br>and click a column to start.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <form method="post" id="form-visual">
+        <input type="hidden" name="mode" value="multigroup">
+        <div id="vform-inputs"></div>
+        <button type="button" onclick="submitVisual()"
+                class="btn btn-primary btn-lg btn-w100">
+          Continue →
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+{# ── MULTI-GROUP MODE (dropdowns) ─────────────────────────────────────────── #}
 <div id="pane-multigroup" style="display:none;">
   <div class="app-card mb-4">
-    <div class="app-card-header">
-      File Preview — {{ filename }}
-      <span class="hint">Column letters A, B, C… match selectors below</span>
-    </div>
+    <div class="app-card-header">File Preview — {{ filename }}<span class="hint">Data rows</span></div>
     <div style="overflow-x:auto;">
       <table style="font-size:.78rem;">
         <thead>
@@ -121,29 +208,19 @@
   <div class="app-card">
     <div class="app-card-header">Define Column Groups</div>
     <div class="app-card-body">
-      <p style="font-size:.85rem;color:#666;margin-bottom:1rem;">
-        For each side-by-side product group, choose the description column and one or more
-        price columns. When you add multiple price columns you'll pick the right price
-        per item in the next step.
-      </p>
-
       <form method="post" id="form-multigroup">
         <input type="hidden" name="mode" value="multigroup">
-
         <div id="groups-container">
           <div class="mg-group" data-gidx="0">
             <div class="mg-group-header">
               <span class="mg-group-label">Group 1</span>
-              <button type="button" class="btn btn-danger btn-sm mg-remove-group" style="display:none"
-                      onclick="removeGroup(this)">Remove Group</button>
+              <button type="button" class="btn btn-danger btn-sm mg-remove-group" style="display:none" onclick="removeGroup(this)">Remove Group</button>
             </div>
             <div class="mg-group-body">
               <div class="mg-field" style="min-width:140px;max-width:180px;">
                 <label class="form-label">Description column</label>
                 <select class="form-select mg-desc" name="group_0_desc" required>
-                  {% for letter in col_letters %}
-                  <option value="{{ loop.index0 }}">{{ letter }}</option>
-                  {% endfor %}
+                  {% for letter in col_letters %}<option value="{{ loop.index0 }}">{{ letter }}</option>{% endfor %}
                 </select>
               </div>
               <div class="mg-prices-wrap" style="flex:1;">
@@ -151,28 +228,18 @@
                 <div class="price-cols-list" data-gidx="0">
                   <div class="price-col-row" style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
                     <select class="form-select" name="group_0_price_0" required style="max-width:120px;">
-                      {% for letter in col_letters %}
-                      <option value="{{ loop.index0 }}">{{ letter }}</option>
-                      {% endfor %}
+                      {% for letter in col_letters %}<option value="{{ loop.index0 }}">{{ letter }}</option>{% endfor %}
                     </select>
-                    <button type="button" class="btn btn-danger btn-sm price-col-remove" style="display:none"
-                            onclick="removePriceCol(this)">×</button>
+                    <button type="button" class="btn btn-danger btn-sm price-col-remove" style="display:none" onclick="removePriceCol(this)">×</button>
                   </div>
                 </div>
-                <button type="button" class="btn btn-outline btn-sm" style="margin-top:4px;"
-                        onclick="addPriceCol(this)" data-gidx="0">+ Price Column</button>
+                <button type="button" class="btn btn-outline btn-sm" style="margin-top:4px;" onclick="addPriceCol(this)" data-gidx="0">+ Price Column</button>
               </div>
             </div>
           </div>
         </div>
-
-        <button type="button" class="btn btn-outline" style="margin-top:.75rem;" onclick="addGroup()">
-          + Add Column Group
-        </button>
-
-        <button type="submit" class="btn btn-primary btn-lg btn-w100" style="margin-top:1.25rem;">
-          Continue →
-        </button>
+        <button type="button" class="btn btn-outline" style="margin-top:.75rem;" onclick="addGroup()">+ Add Column Group</button>
+        <button type="submit" class="btn btn-primary btn-lg btn-w100" style="margin-top:1.25rem;">Continue →</button>
       </form>
     </div>
   </div>
@@ -184,142 +251,297 @@
 {% block scripts %}
 <style>
 .mode-tab-btn {
-  background: none; border: none; padding: 9px 20px;
-  font-size: .85rem; font-weight: 600; cursor: pointer; color: #888;
-  border-bottom: 3px solid transparent; margin-bottom: -2px;
-  transition: color .15s, border-color .15s;
+  background:none;border:none;padding:9px 18px;font-size:.85rem;font-weight:600;
+  cursor:pointer;color:#888;border-bottom:3px solid transparent;margin-bottom:-2px;
+  transition:color .15s,border-color .15s;
 }
-.mode-tab-btn.active { color: #8b0000; border-bottom-color: #8b0000; }
-.mode-tab-btn:hover  { color: #8b0000; }
-.mg-group { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: .75rem; overflow: hidden; }
-.mg-group-header { background: #ecf0f1; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; }
-.mg-group-label { font-weight: 700; font-size: .82rem; color: #555; }
-.mg-group-body { padding: 12px 14px; display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
-.mg-field { flex: 0 0 auto; }
+.mode-tab-btn.active{color:#8b0000;border-bottom-color:#8b0000;}
+.mode-tab-btn:hover{color:#8b0000;}
+
+/* Visual mode */
+.vmode-btn {
+  padding:7px 10px;border:1.5px solid #d0d0d0;border-radius:6px;background:#f8f9fa;
+  color:#555;font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:all .12s;
+}
+.vmode-btn.active{background:#8b0000;border-color:#8b0000;color:#fff;}
+.vmode-btn:hover:not(.active){border-color:#8b0000;color:#8b0000;}
+.vcol-hdr{transition:background .12s,color .12s;}
+.vcol-hdr:hover{filter:brightness(1.15);}
+.vgroup-pill {
+  display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;
+  font-size:.75rem;font-weight:700;margin:2px;
+}
+
+/* Multi-group dropdowns */
+.mg-group{background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;overflow:hidden;}
+.mg-group-header{background:#ecf0f1;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;}
+.mg-group-label{font-weight:700;font-size:.82rem;color:#555;}
+.mg-group-body{padding:12px 14px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;}
+.mg-field{flex:0 0 auto;}
 </style>
 
 <script>
 var colLetters = {{ col_letters | tojson }};
-var groupCount = 1;
 
-function colOptions(selectedIdx) {
-  return colLetters.map(function(l, i) {
-    return '<option value="' + i + '"' + (i === selectedIdx ? ' selected' : '') + '>' + l + '</option>';
-  }).join('');
+/* ── Tab switching ────────────────────────────────────────────────────────── */
+function setMode(mode) {
+  ['simple','visual','multigroup'].forEach(function(m) {
+    var pane = document.getElementById('pane-' + m);
+    var tab  = document.getElementById('tab-' + m);
+    if (pane) pane.style.display = m === mode ? '' : 'none';
+    if (tab)  tab.classList.toggle('active', m === mode);
+  });
+  if (mode === 'visual') renderVisual();
 }
 
-function setMode(mode) {
-  document.getElementById('pane-simple').style.display      = mode === 'simple'     ? '' : 'none';
-  {% if col_letters %}
-  document.getElementById('pane-multigroup').style.display  = mode === 'multigroup' ? '' : 'none';
-  {% endif %}
-  document.getElementById('tab-simple').classList.toggle('active',     mode === 'simple');
-  {% if col_letters %}
-  document.getElementById('tab-multigroup').classList.toggle('active', mode === 'multigroup');
-  {% endif %}
+/* ── VISUAL MAP ───────────────────────────────────────────────────────────── */
+var vGroups = [];
+var vActiveGroup = -1;
+var vMode = 'desc';
+
+var PALETTE = [
+  {bg:'#fde8e8', border:'#e74c3c', text:'#c0392b'},
+  {bg:'#e8f0fd', border:'#3498db', text:'#2471a3'},
+  {bg:'#e9fdf0', border:'#27ae60', text:'#1a7840'},
+  {bg:'#fdf3e8', border:'#e67e22', text:'#d35400'},
+  {bg:'#f3e8fd', border:'#9b59b6', text:'#7d3c98'},
+  {bg:'#fafde8', border:'#c9b000', text:'#8a7800'},
+];
+
+function setVMode(mode) {
+  vMode = mode;
+  document.getElementById('btn-vmode-desc').classList.toggle('active',  mode === 'desc');
+  document.getElementById('btn-vmode-price').classList.toggle('active', mode === 'price');
+  var hint = document.getElementById('vmode-hint');
+  if (mode === 'desc') {
+    hint.textContent = 'Click a column to mark it as the description for a new group.';
+  } else {
+    var label = vActiveGroup >= 0 ? 'Group ' + (vActiveGroup + 1) : 'no active group';
+    hint.textContent = 'Click a column to add/remove it as a price for ' + label + '.';
+  }
+}
+
+function getVAssignment(colIdx) {
+  for (var g = 0; g < vGroups.length; g++) {
+    if (vGroups[g].desc === colIdx)                    return {g: g, role: 'desc'};
+    if (vGroups[g].prices.indexOf(colIdx) >= 0)        return {g: g, role: 'price'};
+  }
+  return null;
+}
+
+function clickVisualCol(colIdx) {
+  if (vMode === 'desc') {
+    var existing = getVAssignment(colIdx);
+    if (existing && existing.role === 'desc') {
+      // Click desc again → remove that whole group
+      vGroups.splice(existing.g, 1);
+      if (vActiveGroup >= vGroups.length) vActiveGroup = vGroups.length - 1;
+    } else {
+      // Remove from any price list first
+      vGroups.forEach(function(g) {
+        g.prices = g.prices.filter(function(p) { return p !== colIdx; });
+      });
+      // Create new group
+      var c = PALETTE[vGroups.length % PALETTE.length];
+      vGroups.push({desc: colIdx, prices: [], color: c});
+      vActiveGroup = vGroups.length - 1;
+    }
+  } else {
+    // Price mode
+    if (vActiveGroup < 0 || vActiveGroup >= vGroups.length) {
+      document.getElementById('vmode-hint').textContent =
+        'Switch to Description mode first and click a column to create a group.';
+      return;
+    }
+    var g = vGroups[vActiveGroup];
+    if (colIdx === g.desc) return;
+    var pi = g.prices.indexOf(colIdx);
+    if (pi >= 0) {
+      g.prices.splice(pi, 1);  // deselect
+    } else {
+      // Remove from other groups' prices
+      vGroups.forEach(function(other) {
+        other.prices = other.prices.filter(function(p) { return p !== colIdx; });
+      });
+      g.prices.push(colIdx);
+    }
+  }
+  renderVisual();
+  setVMode(vMode);
+}
+
+function setVActive(idx) {
+  vActiveGroup = idx;
+  renderVisual();
+  setVMode(vMode);
+}
+
+function removeVGroup(idx) {
+  vGroups.splice(idx, 1);
+  if (vActiveGroup >= vGroups.length) vActiveGroup = vGroups.length - 1;
+  renderVisual();
+  setVMode(vMode);
+}
+
+function renderVisual() {
+  // Column headers
+  document.querySelectorAll('.vcol-hdr').forEach(function(th) {
+    var ci = parseInt(th.dataset.colidx);
+    var a = getVAssignment(ci);
+    if (a) {
+      var c = vGroups[a.g].color;
+      th.style.background = c.border;
+      th.style.color = '#fff';
+      th.textContent = (colLetters[ci] || ci) + (a.role === 'desc' ? ' D' : ' P');
+    } else {
+      th.style.background = '#4a5568';
+      th.style.color = '#fff';
+      th.textContent = colLetters[ci] || ci;
+    }
+  });
+
+  // Column cells
+  document.querySelectorAll('.vcol-cell').forEach(function(td) {
+    var ci = parseInt(td.dataset.colidx);
+    var a = getVAssignment(ci);
+    td.style.background = a ? vGroups[a.g].color.bg : '';
+  });
+
+  // Groups list
+  var list = document.getElementById('vgroups-list');
+  if (!vGroups.length) {
+    list.innerHTML = '<p style="color:#aaa;font-size:.8rem;text-align:center;padding:4px 0;">Switch to Description mode<br>and click a column to start.</p>';
+    return;
+  }
+  var html = '';
+  vGroups.forEach(function(g, i) {
+    var active = i === vActiveGroup;
+    var c = g.color;
+    var descL  = g.desc !== null ? (colLetters[g.desc] || g.desc) : '—';
+    var priceL = g.prices.map(function(p) { return colLetters[p] || p; }).join(', ') || '—';
+    html +=
+      '<div style="border:2px solid ' + c.border + ';border-radius:8px;padding:9px 10px;margin-bottom:7px;' +
+        'background:' + (active ? c.bg : '#fff') + ';">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">' +
+        '<span style="font-weight:700;font-size:.8rem;color:' + c.text + ';">Group ' + (i+1) + (active ? ' ✦' : '') + '</span>' +
+        '<div style="display:flex;gap:4px;">' +
+          (!active ? '<button type="button" class="btn btn-sm" style="font-size:.7rem;padding:2px 7px;background:' + c.border + ';color:#fff;" onclick="setVActive(' + i + ')">Activate</button>' : '') +
+          '<button type="button" class="btn btn-danger btn-sm" style="font-size:.7rem;padding:2px 7px;" onclick="removeVGroup(' + i + ')">✕</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:.78rem;"><b>Desc:</b> <code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;">' + descL + '</code></div>' +
+      '<div style="font-size:.78rem;margin-top:3px;"><b>Prices:</b> <code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;">' + priceL + '</code></div>' +
+      '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function submitVisual() {
+  var valid = vGroups.filter(function(g) { return g.desc !== null && g.prices.length > 0; });
+  if (!valid.length) {
+    alert('Each group needs at least one description column (D) and one price column (P). Use Description mode to click a column, then Price mode to add price columns.');
+    return;
+  }
+  var form = document.getElementById('form-visual');
+  form.querySelectorAll('.vinput').forEach(function(el) { el.remove(); });
+  valid.forEach(function(g, i) {
+    function h(name, val) {
+      var el = document.createElement('input');
+      el.type='hidden'; el.name=name; el.value=val; el.className='vinput';
+      form.appendChild(el);
+    }
+    h('group_' + i + '_desc', g.desc);
+    g.prices.forEach(function(p, j) { h('group_' + i + '_price_' + j, p); });
+  });
+  form.submit();
+}
+
+// Init visual hint
+setVMode('desc');
+
+
+/* ── MULTI-GROUP DROPDOWNS ────────────────────────────────────────────────── */
+var groupCount = 1;
+
+function colOptions(sel) {
+  return colLetters.map(function(l,i){
+    return '<option value="'+i+'"'+(i===sel?' selected':'')+'>'+l+'</option>';
+  }).join('');
 }
 
 function addPriceCol(btn) {
   var gidx = btn.dataset.gidx;
-  var list = document.querySelector('.price-cols-list[data-gidx="' + gidx + '"]');
+  var list = document.querySelector('.price-cols-list[data-gidx="'+gidx+'"]');
   var rows = list.querySelectorAll('.price-col-row');
-  var nextP = rows.length;
   var row = document.createElement('div');
   row.className = 'price-col-row';
   row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px;';
   row.innerHTML =
-    '<select class="form-select" name="group_' + gidx + '_price_' + nextP + '" style="max-width:120px;">' +
-      colOptions(nextP < colLetters.length ? nextP : 0) +
-    '</select>' +
+    '<select class="form-select" name="group_'+gidx+'_price_'+rows.length+'" style="max-width:120px;">'+colOptions(0)+'</select>'+
     '<button type="button" class="btn btn-danger btn-sm price-col-remove" onclick="removePriceCol(this)">×</button>';
   list.appendChild(row);
-  updatePriceRemoveButtons(list);
+  updatePriceRemove(list);
 }
-
 function removePriceCol(btn) {
-  var row = btn.closest('.price-col-row');
-  var list = row.closest('.price-cols-list');
-  row.remove();
+  var list = btn.closest('.price-col-row').closest('.price-cols-list');
+  btn.closest('.price-col-row').remove();
   reindexPriceCols(list);
-  updatePriceRemoveButtons(list);
+  updatePriceRemove(list);
 }
-
 function reindexPriceCols(list) {
   var gidx = list.dataset.gidx;
-  list.querySelectorAll('.price-col-row').forEach(function(row, p) {
+  list.querySelectorAll('.price-col-row').forEach(function(row,p){
     var sel = row.querySelector('select');
-    if (sel) sel.name = 'group_' + gidx + '_price_' + p;
+    if(sel) sel.name = 'group_'+gidx+'_price_'+p;
   });
 }
-
-function updatePriceRemoveButtons(list) {
+function updatePriceRemove(list) {
   var rows = list.querySelectorAll('.price-col-row');
-  rows.forEach(function(row) {
-    var btn = row.querySelector('.price-col-remove');
-    if (btn) btn.style.display = rows.length > 1 ? '' : 'none';
-  });
+  rows.forEach(function(r){ var b=r.querySelector('.price-col-remove'); if(b) b.style.display=rows.length>1?'':'none'; });
 }
-
 function addGroup() {
-  var gidx = groupCount;
-  groupCount++;
+  var idx = groupCount++;
   var div = document.createElement('div');
-  div.className = 'mg-group';
-  div.dataset.gidx = gidx;
+  div.className='mg-group'; div.dataset.gidx=idx;
   div.innerHTML =
-    '<div class="mg-group-header">' +
-      '<span class="mg-group-label">Group ' + groupCount + '</span>' +
-      '<button type="button" class="btn btn-danger btn-sm mg-remove-group" onclick="removeGroup(this)">Remove Group</button>' +
-    '</div>' +
-    '<div class="mg-group-body">' +
-      '<div class="mg-field" style="min-width:140px;max-width:180px;">' +
-        '<label class="form-label">Description column</label>' +
-        '<select class="form-select mg-desc" name="group_' + gidx + '_desc" required>' + colOptions(0) + '</select>' +
-      '</div>' +
-      '<div class="mg-prices-wrap" style="flex:1;">' +
-        '<label class="form-label">Price column(s)</label>' +
-        '<div class="price-cols-list" data-gidx="' + gidx + '">' +
-          '<div class="price-col-row" style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">' +
-            '<select class="form-select" name="group_' + gidx + '_price_0" style="max-width:120px;">' + colOptions(1) + '</select>' +
-            '<button type="button" class="btn btn-danger btn-sm price-col-remove" style="display:none" onclick="removePriceCol(this)">×</button>' +
-          '</div>' +
-        '</div>' +
-        '<button type="button" class="btn btn-outline btn-sm" style="margin-top:4px;" onclick="addPriceCol(this)" data-gidx="' + gidx + '">+ Price Column</button>' +
-      '</div>' +
+    '<div class="mg-group-header"><span class="mg-group-label">Group '+(idx+1)+'</span>'+
+    '<button type="button" class="btn btn-danger btn-sm mg-remove-group" onclick="removeGroup(this)">Remove Group</button></div>'+
+    '<div class="mg-group-body">'+
+      '<div class="mg-field" style="min-width:140px;max-width:180px;"><label class="form-label">Description column</label>'+
+        '<select class="form-select mg-desc" name="group_'+idx+'_desc" required>'+colOptions(0)+'</select></div>'+
+      '<div class="mg-prices-wrap" style="flex:1;"><label class="form-label">Price column(s)</label>'+
+        '<div class="price-cols-list" data-gidx="'+idx+'">'+
+          '<div class="price-col-row" style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">'+
+            '<select class="form-select" name="group_'+idx+'_price_0" style="max-width:120px;">'+colOptions(1)+'</select>'+
+            '<button type="button" class="btn btn-danger btn-sm price-col-remove" style="display:none" onclick="removePriceCol(this)">×</button>'+
+          '</div></div>'+
+        '<button type="button" class="btn btn-outline btn-sm" style="margin-top:4px;" onclick="addPriceCol(this)" data-gidx="'+idx+'">+ Price Column</button>'+
+      '</div>'+
     '</div>';
   document.getElementById('groups-container').appendChild(div);
-  updateGroupRemoveButtons();
+  updateGroupRemove();
   renumberGroups();
 }
-
 function removeGroup(btn) {
   btn.closest('.mg-group').remove();
-  renumberGroups();
-  updateGroupRemoveButtons();
+  renumberGroups(); updateGroupRemove();
 }
-
 function renumberGroups() {
-  document.querySelectorAll('#groups-container .mg-group').forEach(function(g, i) {
-    g.dataset.gidx = i;
-    g.querySelector('.mg-group-label').textContent = 'Group ' + (i + 1);
-    g.querySelector('.mg-desc').name = 'group_' + i + '_desc';
-    var list = g.querySelector('.price-cols-list');
-    list.dataset.gidx = i;
-    list.querySelectorAll('.price-col-row').forEach(function(row, p) {
-      var sel = row.querySelector('select');
-      if (sel) sel.name = 'group_' + i + '_price_' + p;
+  document.querySelectorAll('#groups-container .mg-group').forEach(function(g,i){
+    g.dataset.gidx=i;
+    g.querySelector('.mg-group-label').textContent='Group '+(i+1);
+    g.querySelector('.mg-desc').name='group_'+i+'_desc';
+    var list=g.querySelector('.price-cols-list'); list.dataset.gidx=i;
+    list.querySelectorAll('.price-col-row').forEach(function(row,p){
+      var s=row.querySelector('select'); if(s) s.name='group_'+i+'_price_'+p;
     });
-    var addBtn = g.querySelector('[onclick^="addPriceCol"]');
-    if (addBtn) addBtn.dataset.gidx = i;
+    var ab=g.querySelector('[onclick^="addPriceCol"]'); if(ab) ab.dataset.gidx=i;
   });
 }
-
-function updateGroupRemoveButtons() {
-  var groups = document.querySelectorAll('#groups-container .mg-group');
-  groups.forEach(function(g) {
-    var btn = g.querySelector('.mg-remove-group');
-    if (btn) btn.style.display = groups.length > 1 ? '' : 'none';
-  });
+function updateGroupRemove() {
+  var gs=document.querySelectorAll('#groups-container .mg-group');
+  gs.forEach(function(g){ var b=g.querySelector('.mg-remove-group'); if(b) b.style.display=gs.length>1?'':'none'; });
 }
 </script>
 {% endblock %}
