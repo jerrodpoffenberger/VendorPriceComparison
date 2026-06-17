@@ -306,6 +306,20 @@ def upload(vendor_id):
     return render_template('upload.html', vendor=vendor)
 
 
+def _preview_rows(rows, max_rows=10):
+    """Return up to max_rows rows that contain at least 2 parseable prices.
+    Strips out blank rows and section-header rows (e.g. 'CHUCK  CAB/HRA  CH  SEL…')
+    that have no numeric values."""
+    out = []
+    for row in rows:
+        vals = list(row.values()) if isinstance(row, dict) else row
+        if sum(1 for v in vals if clean_price(v) is not None) >= 2:
+            out.append(row)
+        if len(out) >= max_rows:
+            break
+    return out
+
+
 def _col_letter(idx: int) -> str:
     s, n = '', idx + 1
     while n > 0:
@@ -438,9 +452,10 @@ def column_picker(token):
 
     return render_template('column_picker.html',
                            vendor=vendor, token=token,
-                           columns=columns, preview=preview,
+                           columns=columns,
+                           preview=_preview_rows(rows),
                            filename=data['filename'],
-                           raw_rows=raw_rows[:12],
+                           raw_rows=_preview_rows(raw_rows),
                            col_letters=col_letters)
 
 
@@ -507,7 +522,13 @@ def cut_mapper(token):
         m.raw_description: m
         for m in CutMapping.query.filter_by(vendor_id=vendor_id).all()
     }
-    unmapped = [item for item in items if item['raw_description'] not in cached]
+    seen_unmapped = set()
+    unmapped = []
+    for item in items:
+        desc = item['raw_description']
+        if desc not in cached and desc not in seen_unmapped:
+            unmapped.append(item)
+            seen_unmapped.add(desc)
     auto_count = len(items) - len(unmapped)
     canonical_cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
 
