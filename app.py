@@ -460,14 +460,25 @@ def price_picker(token):
     if request.method == 'POST':
         items = []
         for i, item in enumerate(pending):
-            price = clean_price(request.form.get(f'price_{i}'))
-            if price is None and item['options']:
-                price = item['options'][0]['price']
-            if price is not None:
-                items.append({'raw_description': item['raw_description'],
-                              'price': price, 'unit': item['unit']})
+            selected = request.form.getlist(f'price_{i}')  # list of "COL:price" strings
+            if not selected:
+                continue
+            if len(selected) == 1:
+                col, price_str = selected[0].split(':', 1)
+                price = clean_price(price_str)
+                if price is not None:
+                    items.append({'raw_description': item['raw_description'],
+                                  'price': price, 'unit': item['unit']})
+            else:
+                for sel in selected:
+                    col, price_str = sel.split(':', 1)
+                    price = clean_price(price_str)
+                    if price is not None:
+                        tagged = f"{item['raw_description']} [{col}]"
+                        items.append({'raw_description': tagged,
+                                      'price': price, 'unit': item['unit']})
         if not items:
-            flash('No valid prices selected.', 'danger')
+            flash('No prices selected.', 'danger')
             return redirect(request.url)
         data.update({'items': items})
         _save_tmp(token, data)

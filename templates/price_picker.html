@@ -19,42 +19,63 @@
   <div class="step-bar-item"><span class="step-num">4</span>Map Cuts</div>
 </div>
 
+<div class="app-card mb-3" style="padding:14px 18px;font-size:.85rem;color:#555;background:#fffbf0;border:1px solid #f5e0a0;">
+  <strong>How this works:</strong>
+  Check one price per item to import it at that price.
+  Check <em>multiple</em> prices for the same item to create separate line items — each will get its own cut mapping (e.g. "CHUCK ROLL [C]" and "CHUCK ROLL [D]").
+  Uncheck all prices for an item to skip it.
+</div>
+
 <div class="app-card mb-3">
   <div class="app-card-header">
     Price Selection — {{ filename }}
-    <span class="hint">{{ pending|length }} items · pick the price to use for each</span>
+    <span class="hint">{{ pending|length }} items</span>
   </div>
-  <div style="overflow-x:auto;">
-    <form method="post" id="price-form">
 
+  <form method="post" id="price-form">
+    <div style="padding:10px 14px;border-bottom:1px solid #f0f0f0;display:flex;gap:10px;align-items:center;">
+      <span style="font-size:.8rem;color:#888;">Quick select:</span>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setAll(true)">Check all first prices</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setAll(false)">Uncheck all</button>
+    </div>
+
+    <div style="overflow-x:auto;">
       <table>
         <thead>
           <tr>
             <th style="min-width:220px;">Item</th>
-            <th>Available Prices — click to select</th>
+            <th>Available Prices — check one or more</th>
           </tr>
         </thead>
         <tbody>
           {% for item in pending %}
           <tr>
-            <td class="fw-semibold" style="font-size:.88rem;">{{ item.raw_description }}</td>
+            <td class="fw-semibold" style="font-size:.88rem;vertical-align:top;padding-top:12px;">
+              {{ item.raw_description }}
+            </td>
             <td>
               {% if item.options|length == 1 %}
-                {# Only one price — auto-selected, no choice needed #}
-                <input type="hidden" name="price_{{ loop.index0 }}" value="{{ item.options[0].price }}">
+                {# Single price — auto-included, show as locked #}
+                <input type="hidden" name="price_{{ loop.index0 }}"
+                       value="{{ item.options[0].col }}:{{ item.options[0].price }}">
                 <span class="price-badge price-locked">
                   {{ item.options[0].col }}: ${{ '%.2f'|format(item.options[0].price) }}
                 </span>
               {% else %}
-                <div class="price-opts" role="group">
+                <div class="price-opts">
                   {% for opt in item.options %}
                   <label class="price-opt-label {% if loop.first %}selected{% endif %}">
-                    <input type="radio" name="price_{{ loop.index0 }}" value="{{ opt.price }}"
+                    <input type="checkbox"
+                           name="price_{{ loop.index0 }}"
+                           value="{{ opt.col }}:{{ opt.price }}"
                            {% if loop.first %}checked{% endif %}
-                           onchange="selectPrice(this)">
+                           onchange="toggleOpt(this)">
                     {{ opt.col }}: ${{ '%.2f'|format(opt.price) }}
                   </label>
                   {% endfor %}
+                </div>
+                <div class="multi-hint" style="display:none;font-size:.75rem;color:#8b0000;margin-top:4px;">
+                  Multiple selected — each creates a separate line item with column letter appended
                 </div>
               {% endif %}
             </td>
@@ -62,42 +83,51 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
 
-      <div style="padding:16px 14px;border-top:1px solid #f0f0f0;text-align:right;">
-        <button type="submit" class="btn btn-primary btn-lg">Continue to Cut Mapping →</button>
-      </div>
-
-    </form>
-  </div>
+    <div style="padding:16px 14px;border-top:1px solid #f0f0f0;text-align:right;">
+      <button type="submit" class="btn btn-primary btn-lg">Continue to Cut Mapping →</button>
+    </div>
+  </form>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <style>
-.price-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.price-opts { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; }
 .price-opt-label {
-  display: inline-flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 12px; border-radius: 20px; font-size: .82rem; font-weight: 600;
   border: 1.5px solid #d0d0d0; background: #f8f9fa; color: #555;
   cursor: pointer; transition: border-color .12s, background .12s, color .12s;
   user-select: none;
 }
-.price-opt-label input[type=radio] { display: none; }
-.price-opt-label:hover { border-color: #8b0000; color: #8b0000; }
-.price-opt-label.selected { border-color: #8b0000; background: #8b0000; color: #fff; }
-.price-badge {
-  display: inline-block; padding: 4px 12px; border-radius: 20px;
-  font-size: .82rem; font-weight: 600;
-}
+.price-opt-label input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; accent-color: #8b0000; }
+.price-opt-label.selected { border-color: #8b0000; background: #fdf3f3; color: #8b0000; }
+.price-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .82rem; font-weight: 600; }
 .price-locked { background: #eafaf1; color: #1e8449; border: 1.5px solid #a9dfbf; }
 </style>
 <script>
-function selectPrice(radio) {
-  var group = radio.closest('.price-opts');
-  group.querySelectorAll('.price-opt-label').forEach(function(l) {
-    l.classList.remove('selected');
+function toggleOpt(cb) {
+  var label = cb.closest('.price-opt-label');
+  label.classList.toggle('selected', cb.checked);
+  var row = cb.closest('tr');
+  var checked = row.querySelectorAll('input[type=checkbox]:checked');
+  var hint = row.querySelector('.multi-hint');
+  if (hint) hint.style.display = checked.length > 1 ? '' : 'none';
+}
+
+function setAll(checkFirst) {
+  document.querySelectorAll('tbody tr').forEach(function(row) {
+    var boxes = row.querySelectorAll('input[type=checkbox]');
+    if (!boxes.length) return;
+    boxes.forEach(function(cb, i) {
+      cb.checked = checkFirst ? i === 0 : false;
+      cb.closest('.price-opt-label').classList.toggle('selected', cb.checked);
+    });
+    var hint = row.querySelector('.multi-hint');
+    if (hint) hint.style.display = 'none';
   });
-  radio.closest('.price-opt-label').classList.add('selected');
 }
 </script>
 {% endblock %}
