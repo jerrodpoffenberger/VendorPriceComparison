@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 
 from extensions import db
 from models import Vendor, PriceSheet, CanonicalCut, CutMapping, LineItem
-from file_parser import parse_file, parse_excel_raw, clean_price
+from file_parser import parse_file, parse_excel_raw, clean_price, detect_columns, detect_multigroup
 
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'xlsm', 'csv', 'pdf'}
 
@@ -450,6 +450,9 @@ def column_picker(token):
         _save_tmp(token, data)
         return redirect(url_for('cut_mapper', token=token))
 
+    detected_simple = detect_columns(rows)
+    detected_mg = detect_multigroup(raw_rows, col_count)
+
     return render_template('column_picker.html',
                            vendor=vendor, token=token,
                            columns=columns,
@@ -457,7 +460,9 @@ def column_picker(token):
                            filename=data['filename'],
                            raw_rows=_preview_rows(raw_rows),
                            raw_rows_all=raw_rows[:40],
-                           col_letters=col_letters)
+                           col_letters=col_letters,
+                           detected_simple=detected_simple,
+                           detected_mg=detected_mg)
 
 
 # ── Upload wizard: Step 2.5 — pick price per item ────────────────────────────
