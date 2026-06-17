@@ -7,7 +7,10 @@
     <a href="{{ url_for('vendors') }}" class="btn btn-secondary btn-sm">← Back</a>
     <h2>{{ vendor.name }} — Price Sheets</h2>
   </div>
-  <a href="{{ url_for('upload', vendor_id=vendor.id) }}" class="btn btn-primary btn-sm">Upload New Sheet</a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('vendor_mappings', vendor_id=vendor.id) }}" class="btn btn-secondary btn-sm">Manage Mappings</a>
+    <a href="{{ url_for('upload', vendor_id=vendor.id) }}" class="btn btn-primary btn-sm">Upload New Sheet</a>
+  </div>
 </div>
 
 {% if not sheets %}
@@ -33,7 +36,10 @@
     <tbody>
       {% for sheet in sheets %}
       <tr>
-        <td class="fw-semibold">{{ sheet.filename }}</td>
+        <td class="fw-semibold">
+          <a href="{{ url_for('sheet_detail', vendor_id=vendor.id, sheet_id=sheet.id) }}"
+             style="color:inherit;text-decoration:underline dotted;">{{ sheet.filename }}</a>
+        </td>
         <td class="text-muted">{{ sheet.uploaded_at.strftime('%m/%d/%Y %I:%M %p') }}</td>
         <td class="text-center">{{ sheet.item_count }}</td>
         <td class="text-center">
@@ -43,7 +49,9 @@
             <span class="badge badge-archived">Archived</span>
           {% endif %}
         </td>
-        <td class="text-right">
+        <td class="text-right" style="white-space:nowrap;gap:6px;display:flex;justify-content:flex-end;">
+          <a href="{{ url_for('sheet_detail', vendor_id=vendor.id, sheet_id=sheet.id) }}"
+             class="btn btn-secondary btn-sm">View Items</a>
           {% if not sheet.is_active %}
           <form method="post"
                 action="{{ url_for('activate_sheet', vendor_id=vendor.id, sheet_id=sheet.id) }}">

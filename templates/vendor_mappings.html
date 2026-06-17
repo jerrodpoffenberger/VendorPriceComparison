@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}{{ vendor.name }} — Mappings{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div class="d-flex align-center gap-3">
+    <a href="{{ url_for('vendor_detail', vendor_id=vendor.id) }}" class="btn btn-secondary btn-sm">← Back</a>
+    <h2>{{ vendor.name }} — Cut Mappings</h2>
+  </div>
+</div>
+
+<p class="text-muted" style="margin-bottom:1rem;">
+  These are the cached mappings from raw descriptions in this vendor's price sheets to your canonical cut names.
+  Changing a mapping here also updates all historical line items for this vendor.
+</p>
+
+{% if not mappings %}
+<div class="app-card">
+  <div class="empty-state">
+    <div style="font-size:3rem;">🗂️</div>
+    <p>No mappings saved yet. Upload a price sheet and map cut names to create them.</p>
+  </div>
+</div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:45%">Raw Description (from vendor file)</th>
+        <th>Mapped To</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in mappings %}
+      <tr>
+        <td style="font-family:monospace;font-size:.88rem;">{{ m.raw_description }}</td>
+        <td>
+          <form method="post"
+                action="{{ url_for('update_mapping', vendor_id=vendor.id, mapping_id=m.id) }}"
+                style="display:flex;gap:6px;align-items:center;">
+            <select name="canonical_cut_id" class="form-select form-select-sm" style="min-width:220px;">
+              {% set cur = m.canonical_cut_id %}
+              {% for cut in canonical_cuts %}
+              <option value="{{ cut.id }}" {% if cut.id == cur %}selected{% endif %}>
+                [{{ cut.category|capitalize }}] {{ cut.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </form>
+        </td>
+        <td class="text-right">
+          <form method="post"
+                action="{{ url_for('delete_mapping', vendor_id=vendor.id, mapping_id=m.id) }}"
+                onsubmit="return confirm('Remove this mapping? The raw description will appear as unmapped on the next upload.')">
+            <button class="btn btn-danger btn-sm">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

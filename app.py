@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session
+from sqlalchemy import inspect as sa_inspect, text
 from werkzeug.utils import secure_filename
 
 from extensions import db
@@ -62,6 +63,13 @@ _SEED_CUTS = [
 
 with app.app_context():
     db.create_all()
+    # Add is_active column to vendors if upgrading from an older schema
+    inspector = sa_inspect(db.engine)
+    vendor_cols = [c['name'] for c in inspector.get_columns('vendors')]
+    if 'is_active' not in vendor_cols:
+        with db.engine.connect() as conn:
+            conn.execute(text('ALTER TABLE vendors ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1'))
+            conn.commit()
     for name, category in _SEED_CUTS:
         if not CanonicalCut.query.filter_by(name=name).first():
             db.session.add(CanonicalCut(name=name, category=category))
@@ -168,6 +176,17 @@ def vendor_detail(vendor_id):
     return render_template('vendor_detail.html', vendor=vendor, sheets=sheets)
 
 
+@app.route('/vendors/<int:vendor_id>/toggle', methods=['POST'])
+@login_required
+def toggle_vendor(vendor_id):
+    vendor = db.get_or_404(Vendor, vendor_id)
+    vendor.is_active = not vendor.is_active
+    db.session.commit()
+    state = 'enabled' if vendor.is_active else 'disabled'
+    flash(f'Vendor "{vendor.name}" {state}.', 'success')
+    return redirect(url_for('vendors'))
+
+
 @app.route('/vendors/<int:vendor_id>/sheets/<int:sheet_id>/activate', methods=['POST'])
 @login_required
 def activate_sheet(vendor_id, sheet_id):
@@ -177,6 +196,61 @@ def activate_sheet(vendor_id, sheet_id):
     db.session.commit()
     flash('Price sheet activated.', 'success')
     return redirect(url_for('vendor_detail', vendor_id=vendor_id))
+
+
+@app.route('/vendors/<int:vendor_id>/sheets/<int:sheet_id>')
+@login_required
+def sheet_detail(vendor_id, sheet_id):
+    vendor = db.get_or_404(Vendor, vendor_id)
+    sheet = db.get_or_404(PriceSheet, sheet_id)
+    items = (LineItem.query
+             .filter_by(price_sheet_id=sheet_id)
+             .order_by(LineItem.raw_description)
+             .all())
+    return render_template('sheet_detail.html', vendor=vendor, sheet=sheet, items=items)
+
+
+@app.route('/vendors/<int:vendor_id>/mappings')
+@login_required
+def vendor_mappings(vendor_id):
+    vendor = db.get_or_404(Vendor, vendor_id)
+    mappings = (CutMapping.query
+                .filter_by(vendor_id=vendor_id)
+                .order_by(CutMapping.raw_description)
+                .all())
+    canonical_cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
+    return render_template('vendor_mappings.html', vendor=vendor, mappings=mappings,
+                           canonical_cuts=canonical_cuts)
+
+
+@app.route('/vendors/<int:vendor_id>/mappings/<int:mapping_id>/update', methods=['POST'])
+@login_required
+def update_mapping(vendor_id, mapping_id):
+    mapping = db.get_or_404(CutMapping, mapping_id)
+    cut_id = request.form.get('canonical_cut_id', type=int)
+    if cut_id:
+        mapping.canonical_cut_id = cut_id
+        # Cascade to all historical line items for this vendor + raw description
+        sheet_ids = [s.id for s in PriceSheet.query.filter_by(vendor_id=vendor_id).all()]
+        if sheet_ids:
+            LineItem.query.filter(
+                LineItem.price_sheet_id.in_(sheet_ids),
+                LineItem.raw_description == mapping.raw_description
+            ).update({'canonical_cut_id': cut_id}, synchronize_session=False)
+        db.session.commit()
+        flash('Mapping updated.', 'success')
+    return redirect(url_for('vendor_mappings', vendor_id=vendor_id))
+
+
+@app.route('/vendors/<int:vendor_id>/mappings/<int:mapping_id>/delete', methods=['POST'])
+@login_required
+def delete_mapping(vendor_id, mapping_id):
+    mapping = db.get_or_404(CutMapping, mapping_id)
+    raw = mapping.raw_description
+    db.session.delete(mapping)
+    db.session.commit()
+    flash(f'Mapping for "{raw[:60]}" removed.', 'success')
+    return redirect(url_for('vendor_mappings', vendor_id=vendor_id))
 
 
 # ── Upload wizard: Step 1 — pick file ────────────────────────────────────────
@@ -386,7 +460,7 @@ def cut_mapper(token):
 @login_required
 def comparison():
     category_filter = request.args.get('category', 'all')
-    vendors = Vendor.query.order_by(Vendor.name).all()
+    vendors = Vendor.query.filter_by(is_active=True).order_by(Vendor.name).all()
 
     active_sheets = {}
     for v in vendors:
@@ -426,7 +500,7 @@ def comparison():
 
 def _build_report_data():
     """Shared data logic for /reports and /reports/print."""
-    vendors = Vendor.query.order_by(Vendor.name).all()
+    vendors = Vendor.query.filter_by(is_active=True).order_by(Vendor.name).all()
     active_sheets = {}
     for v in vendors:
         sheet = (PriceSheet.query
@@ -486,6 +560,29 @@ def reports_print():
                            active_sheets=active_sheets,
                            has_data=bool(by_vendor),
                            generated=datetime.now())
+
+
+# ── Price History ─────────────────────────────────────────────────────────────
+
+@app.route('/cuts/history')
+@login_required
+def cut_history():
+    cuts = CanonicalCut.query.order_by(CanonicalCut.category, CanonicalCut.name).all()
+    cut_id = request.args.get('cut_id', type=int)
+    selected_cut = None
+    history = []
+    if cut_id:
+        selected_cut = CanonicalCut.query.get(cut_id)
+        if selected_cut:
+            history = (
+                db.session.query(LineItem, PriceSheet, Vendor)
+                .join(PriceSheet, LineItem.price_sheet_id == PriceSheet.id)
+                .join(Vendor, PriceSheet.vendor_id == Vendor.id)
+                .filter(LineItem.canonical_cut_id == cut_id)
+                .order_by(PriceSheet.uploaded_at.desc())
+                .all()
+            )
+    return render_template('cut_history.html', cuts=cuts, selected_cut=selected_cut, history=history)
 
 
 # ── Canonical cuts ────────────────────────────────────────────────────────────

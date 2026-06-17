@@ -20,14 +20,27 @@
     <div class="app-card">
       <ul class="item-list">
         {% for v in vendors %}
-        <li class="item-row">
+        <li class="item-row {% if not v.is_active %}opacity-50{% endif %}">
           <div>
-            <div class="item-name">{{ v.name }}</div>
+            <div class="item-name">
+              {{ v.name }}
+              {% if not v.is_active %}
+                <span class="badge" style="background:#6c757d;color:#fff;font-size:.7rem;padding:2px 7px;border-radius:10px;margin-left:6px;">Disabled</span>
+              {% endif %}
+            </div>
             <div class="item-meta">Added {{ v.created_at.strftime('%m/%d/%Y') }}</div>
           </div>
           <div class="item-actions">
+            {% if v.is_active %}
             <a href="{{ url_for('upload', vendor_id=v.id) }}" class="btn btn-primary btn-sm">Upload</a>
+            {% endif %}
             <a href="{{ url_for('vendor_detail', vendor_id=v.id) }}" class="btn btn-secondary btn-sm">Sheets</a>
+            <a href="{{ url_for('vendor_mappings', vendor_id=v.id) }}" class="btn btn-secondary btn-sm">Mappings</a>
+            <form method="post" action="{{ url_for('toggle_vendor', vendor_id=v.id) }}" style="display:inline">
+              <button class="btn btn-sm {% if v.is_active %}btn-warning{% else %}btn-success{% endif %}">
+                {{ 'Disable' if v.is_active else 'Enable' }}
+              </button>
+            </form>
             <form method="post" action="{{ url_for('delete_vendor', vendor_id=v.id) }}"
                   onsubmit="return confirm('Delete {{ v.name }}? This removes all their price data.')">
               <button class="btn btn-danger btn-sm">✕</button>

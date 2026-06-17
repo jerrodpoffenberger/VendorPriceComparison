@@ -32,12 +32,16 @@
       Compare Prices
     </a>
     <a href="{{ url_for('vendors') }}"
-       class="nav-btn {% if request.endpoint in ('vendors','vendor_detail','upload','column_picker','cut_mapper') %}active{% endif %}">
+       class="nav-btn {% if request.endpoint in ('vendors','vendor_detail','upload','column_picker','cut_mapper','toggle_vendor','activate_sheet','sheet_detail','vendor_mappings','update_mapping','delete_mapping') %}active{% endif %}">
       Vendors
     </a>
     <a href="{{ url_for('canonical_cuts') }}"
        class="nav-btn {% if request.endpoint == 'canonical_cuts' %}active{% endif %}">
       Cut Names
+    </a>
+    <a href="{{ url_for('cut_history') }}"
+       class="nav-btn {% if request.endpoint == 'cut_history' %}active{% endif %}">
+      Price History
     </a>
     <a href="{{ url_for('reports') }}"
        class="nav-btn {% if request.endpoint == 'reports' %}active{% endif %}">

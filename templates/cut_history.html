@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Price History{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <h2>Price History</h2>
+</div>
+
+<div class="app-card" style="margin-bottom:1.5rem;">
+  <div class="app-card-body">
+    <form method="get" action="{{ url_for('cut_history') }}" class="d-flex gap-3 align-center" style="flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <label class="form-label">Select a Cut</label>
+        <select name="cut_id" class="form-select">
+          <option value="">— choose a cut —</option>
+          {% set cur_cat = '' %}
+          {% for cut in cuts %}
+            {% if cut.category != cur_cat %}
+              {% if cur_cat %}</optgroup>{% endif %}
+              <optgroup label="{{ cut.category|capitalize }}">
+              {% set cur_cat = cut.category %}
+            {% endif %}
+            <option value="{{ cut.id }}" {% if selected_cut and cut.id == selected_cut.id %}selected{% endif %}>
+              {{ cut.name }}
+            </option>
+          {% endfor %}
+          {% if cur_cat %}</optgroup>{% endif %}
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;">
+        <button type="submit" class="btn btn-primary">View History</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if selected_cut %}
+  <h3 style="margin-bottom:1rem;">{{ selected_cut.name }}
+    <span class="text-muted" style="font-size:.85rem;font-weight:400;">({{ selected_cut.category }})</span>
+  </h3>
+
+  {% if not history %}
+  <div class="app-card">
+    <div class="empty-state">
+      <p>No price data found for this cut across any uploaded sheets.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Vendor</th>
+          <th>File</th>
+          <th>Upload Date</th>
+          <th class="text-center">Price</th>
+          <th class="text-center">Unit</th>
+          <th class="text-center">Sheet Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item, sheet, vendor in history %}
+        <tr {% if sheet.is_active %}style="background:#f0faf2;"{% endif %}>
+          <td class="fw-semibold">{{ vendor.name }}</td>
+          <td>
+            <a href="{{ url_for('sheet_detail', vendor_id=vendor.id, sheet_id=sheet.id) }}"
+               style="color:inherit;text-decoration:underline dotted;font-size:.88rem;">
+              {{ sheet.filename }}
+            </a>
+          </td>
+          <td class="text-muted">{{ sheet.uploaded_at.strftime('%m/%d/%Y') }}</td>
+          <td class="text-center fw-semibold">${{ '%.2f'|format(item.price) }}</td>
+          <td class="text-center text-muted">{{ item.unit }}</td>
+          <td class="text-center">
+            {% if sheet.is_active %}
+              <span class="badge badge-active">Active</span>
+            {% else %}
+              <span class="badge badge-archived">Archived</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

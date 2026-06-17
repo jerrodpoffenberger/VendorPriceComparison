@@ -6,6 +6,7 @@ class Vendor(db.Model):
     __tablename__ = 'vendors'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     price_sheets = db.relationship('PriceSheet', back_populates='vendor', lazy='dynamic')
 
